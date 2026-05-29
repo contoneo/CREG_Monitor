@@ -1,5 +1,5 @@
 {
-  "fecha_consulta": "2026-05-29",
+  "rango_de_fechas": ["2026-05-01","2026-05-14"],
   "total_documentos": 3,
   "fuentes_consultadas": [
     "https://creg.gov.co/loader.php?lServicio=Documentos&lFuncion=infoCategoriaConsumo&tipo=RE",

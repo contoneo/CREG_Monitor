@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { createRoot } from 'react-dom/client';
 import './creg_monitor.css';
+import { SEED_RESULT, mergeDedupe, mergeRango } from './data/seed.js';
 
 const SYSTEM_PROMPT = `RESPONDE ÚNICAMENTE CON JSON PURO. Primer carácter: {. Último carácter: }. Cero texto antes o después.
 
@@ -38,7 +39,7 @@ function CREGMonitor() {
   const rango = [oneMonthAgo, today];
   const [relevanciaMin, setRelevanciaMin] = useState(3);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
+  const [result, setResult] = useState(SEED_RESULT);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState("documentos");
   const [sortField, setSortField] = useState("relevancia");
@@ -67,7 +68,6 @@ function CREGMonitor() {
     }
     setLoading(true);
     setError(null);
-    setResult(null);
     abortRef.current = new AbortController();
     let rawText = null;
 
@@ -92,7 +92,13 @@ function CREGMonitor() {
       const jsonMatch = raw.match(/\{[\s\S]*\}/);
       if (!jsonMatch) throw new Error("No se encontró JSON en la respuesta");
       const parsed = JSON.parse(jsonMatch[0]);
-      setResult(parsed);
+      setResult(prev => {
+        const documentos = mergeDedupe(parsed.documentos ?? [], prev?.documentos ?? []);
+        const proyectos_en_consulta = mergeDedupe(parsed.proyectos_en_consulta ?? [], prev?.proyectos_en_consulta ?? []);
+        const fuentes_consultadas = [...new Set([...(parsed.fuentes_consultadas ?? []), ...(prev?.fuentes_consultadas ?? [])])];
+        const rango_de_fechas = mergeRango([prev, { rango_de_fechas: rango }]);
+        return { ...parsed, documentos, proyectos_en_consulta, fuentes_consultadas, total_documentos: documentos.length, rango_de_fechas };
+      });
       setActiveTab("documentos");
       setFilterArea("Todas");
       setFilterTipo("Todos");
@@ -199,7 +205,7 @@ function CREGMonitor() {
                 ["Documentos", result.total_documentos ?? result.documentos?.length ?? 0],
                 ["Proyectos", result.proyectos_en_consulta?.length ?? 0],
                 ["Fuentes", result.fuentes_consultadas?.length ?? 0],
-                ["Fecha", result.fecha_consulta ?? "—"],
+                ["Rango", result.rango_de_fechas ? result.rango_de_fechas.join(" / ") : "—"],
               ].map(([label, val]) => (
                 <div key={label} className="result-metric">
                   <p className="lbl">{label}</p>

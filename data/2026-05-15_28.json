@@ -1,5 +1,5 @@
 {
-  "fecha_consulta": "2026-05-28",
+  "rango_de_fechas": ["2026-05-15","2026-05-28"],
   "total_documentos": 6,
   "fuentes_consultadas": [
     "https://creg.gov.co/",
