@@ -9,7 +9,7 @@ Si inválido: {"error":"JSON inválido","campos_faltantes":[]}
 
 BÚSQUEDA: Tiempo real en creg.gov.co → gestornormativo.creg.gov.co → minenergia.gov.co → diario-oficial.vlex.com.co. Omite no verificados, derogados o fuera de filtros. Si el JSON se aproxima al límite de tokens, cierra el array y el objeto correctamente antes de truncar.
 
-SCHEMA: {"rango_de_fechas":["YYYY-MM-DD","YYYY-MM-DD"],"total_documentos":N,"fuentes_consultadas":["url"],"advertencia":"vacío o explicación si <6 docs","documentos":[{"numero_nombre":"str","fecha":"YYYY-MM-DD","tipo":"Resolución|Circular|Acuerdo","area":"str","relevancia":1,"confianza":"alta|media|baja","url_oficial":"https://","modifica_a":["str"],"descripcion":"str"}],"proyectos_en_consulta":[{"numero_nombre":"str","fecha":"YYYY-MM-DD","area":"str","url_oficial":"https://","descripcion":"str"}]}
+SCHEMA: {"rango_de_fechas":["YYYY-MM-DD","YYYY-MM-DD"],"total_documentos":N,"fuentes_consultadas":["url"],"info":"vacío o explicación si <6 docs","documentos":[{"numero_nombre":"str","fecha":"YYYY-MM-DD","tipo":"Resolución|Circular|Acuerdo","area":"str","relevancia":1,"confianza":"alta|media|baja","url_oficial":"https://","modifica_a":["str"],"descripcion":"str"}],"proyectos_en_consulta":[{"numero_nombre":"str","fecha":"YYYY-MM-DD","area":"str","url_oficial":"https://","descripcion":"str"}]}
 
 REGLAS: total_documentos=len(documentos). confianza: alta=URL directa, media=referencia verificada, baja=fuente secundaria. Mínimo 6 documentos verificados.`
 
@@ -357,14 +357,14 @@ export default function CREGMonitor() {
             ))}
           </div>
 
-          {result.advertencia && (
+          {result.info && (
             <div style={{
               background: "var(--color-background-warning)",
               border: "0.5px solid var(--color-border-warning)",
               borderRadius: "var(--border-radius-md)", padding: "10px 14px",
               fontSize: 13, color: "var(--color-text-warning)", marginBottom: 12,
             }}>
-              ⚠ {result.advertencia}
+              ⚠ {result.info}
             </div>
           )}
 

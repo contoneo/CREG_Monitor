@@ -12,7 +12,7 @@ Si inválido: {"error":"JSON inválido","campos_faltantes":[]}
 
 BÚSQUEDA: Tiempo real en creg.gov.co → gestornormativo.creg.gov.co → minenergia.gov.co → diario-oficial.vlex.com.co. Omite no verificados, derogados o fuera de filtros. Si el JSON se aproxima al límite de tokens, cierra el array y el objeto correctamente antes de truncar.
 
-SCHEMA: {"fecha_consulta":"YYYY-MM-DD","total_documentos":N,"fuentes_consultadas":["url"],"advertencia":"vacío o explicación si <6 docs","documentos":[{"numero_nombre":"str","fecha":"YYYY-MM-DD","tipo":"Resolución|Circular|Acuerdo","area":"str","relevancia":1,"confianza":"alta|media|baja","url_oficial":"https://","modifica_a":["str"],"descripcion":"str"}],"proyectos_en_consulta":[{"numero_nombre":"str","fecha":"YYYY-MM-DD","area":"str","url_oficial":"https://","descripcion":"str"}]}
+SCHEMA: {"fecha_consulta":"YYYY-MM-DD","total_documentos":N,"fuentes_consultadas":["url"],"info":"vacío o explicación si <6 docs","documentos":[{"numero_nombre":"str","fecha":"YYYY-MM-DD","tipo":"Resolución|Circular|Acuerdo","area":"str","relevancia":1,"confianza":"alta|media|baja","url_oficial":"https://","modifica_a":["str"],"descripcion":"str"}],"proyectos_en_consulta":[{"numero_nombre":"str","fecha":"YYYY-MM-DD","area":"str","url_oficial":"https://","descripcion":"str"}]}
 
 REGLAS: total_documentos=len(documentos). confianza: alta=URL directa, media=referencia verificada, baja=fuente secundaria. Mínimo 6 documentos verificados.`
 
@@ -193,31 +193,26 @@ function CREGMonitor() {
   
         {result && (
           <div>
-            {/* Métricas */}
-            <div className="result-metrics">
-              {[
-                ["Resoluciones", result.total_documentos ?? result.documentos?.length ?? 0],
-                ["Circulares", result.proyectos_en_consulta?.length ?? 0],
-                ["Acuerdos", 0],
-                ["Conceptos técnicos", 0],
-                ["Fuentes", result.fuentes_consultadas?.length ?? 0],
-                ["Rango", result.rango_de_fechas ? result.rango_de_fechas.join(" ") : "—"],
-              ].map(([label, val]) => (
-                <div key={label} className="metric">
-                  <p className="lbl">{label}</p>
-                  <p className="val">{val}</p>
-                </div>
-              ))}
+            {/* Período cubierto */}
+            <div className="date-range-bar">
+              <span className="date-range-label">Período cubierto</span>
+              <span className="date-range-value">
+                {result.rango_de_fechas
+                  ? result.rango_de_fechas
+                      .map(d => new Date(d + "T00:00:00").toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "numeric" }))
+                      .join(" → ")
+                  : "—"}
+              </span>
             </div>
   
-            {result.advertencia && <div className="warning-box">⚠ {result.advertencia}</div>}
-  
+            {result.info && <div className="info-box">{result.info}</div>}
+
             {/* Sub-tabs */}
             <div className="result-tabs">
               {[
                 ["documentos", `Documentos (${result.documentos?.length ?? 0})`],
                 ["proyectos", `Proyectos en consulta (${result.proyectos_en_consulta?.length ?? 0})`],
-                ["fuentes", "Fuentes consultadas"],
+                ["fuentes", `Fuentes consultadas (${result.fuentes_consultadas?.length ?? 0})`],
               ].map(([key, label]) => (
                 <button key={key} className={`result-tab${activeTab === key ? ' active' : ''}`}
                   onClick={() => setActiveTab(key)}>{label}</button>
