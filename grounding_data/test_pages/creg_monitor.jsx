@@ -102,6 +102,7 @@ export default function CREGMonitor() {
       const jsonMatch = raw.match(/\{[\s\S]*\}/);
       if (!jsonMatch) throw new Error("No se encontró JSON en la respuesta");
       const parsed = JSON.parse(jsonMatch[0]);
+      setRawResp(rawText);
       setResult(parsed);
       setActiveTab("documentos");
       setFilterArea("Todas");
@@ -534,16 +535,16 @@ export default function CREGMonitor() {
         </div>
       )}
 
-      {textBlock && (
+      {rawResp && (
         <div style={{ marginTop: 24 }}>
           <div style={{
             display: "flex", justifyContent: "space-between", alignItems: "center",
             marginBottom: 6,
           }}>
             <span style={{ fontSize: 12, fontWeight: 500, color: "var(--color-text-secondary)" }}>
-              JSON devuelto por la API — textBlock.text ({textBlock.length} caracteres)
+              Respuesta completa — POST /v1/messages ({rawResp.length} caracteres)
             </span>
-            <button onClick={() => setTextBlock(null)} style={{
+            <button onClick={() => setRawResp(null)} style={{
               fontSize: 11, padding: "2px 8px", cursor: "pointer",
               border: "0.5px solid var(--color-border-tertiary)",
               borderRadius: "var(--border-radius-md)",
@@ -557,7 +558,7 @@ export default function CREGMonitor() {
             fontFamily: "var(--font-mono)", fontSize: 11,
             color: "var(--color-text-secondary)", whiteSpace: "pre-wrap",
             wordBreak: "break-all", maxHeight: 400, overflowY: "auto", margin: 0,
-          }}>{textBlock}</pre>
+          }}>{(() => { try { return JSON.stringify(JSON.parse(rawResp), null, 2); } catch { return rawResp; } })()}</pre>
         </div>
       )}
     </div>
