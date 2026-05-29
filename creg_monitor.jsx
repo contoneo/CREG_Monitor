@@ -175,12 +175,6 @@ function CREGMonitor() {
 
       {/* ══ Dashboard panel ══ */}
       <div id="tab-dashboard" className={`section${mainTab === 'dashboard' ? ' active' : ''}`}>
-        <div className="metrics">
-          <div className="metric"><div className="val" id="m-resoluciones">0</div><div className="lbl">Resoluciones</div></div>
-          <div className="metric"><div className="val" id="m-circulares">0</div><div className="lbl">Circulares</div></div>
-          <div className="metric"><div className="val" id="m-acuerdos">0</div><div className="lbl">Acuerdos</div></div>
-          <div className="metric"><div className="val" id="m-conceptos">0</div><div className="lbl">Conceptos técnicos</div></div>
-        </div>
         <div className="row-apart">
           <button className={`btn btn-primary${loading ? ' loading' : ''}`} id="btn-scan"
             disabled={!tipos.length || !areas.length}
@@ -202,12 +196,14 @@ function CREGMonitor() {
             {/* Métricas */}
             <div className="result-metrics">
               {[
-                ["Documentos", result.total_documentos ?? result.documentos?.length ?? 0],
-                ["Proyectos", result.proyectos_en_consulta?.length ?? 0],
+                ["Resoluciones", result.total_documentos ?? result.documentos?.length ?? 0],
+                ["Circulares", result.proyectos_en_consulta?.length ?? 0],
+                ["Acuerdos", 0],
+                ["Conceptos técnicos", 0],
                 ["Fuentes", result.fuentes_consultadas?.length ?? 0],
-                ["Rango", result.rango_de_fechas ? result.rango_de_fechas.join(" / ") : "—"],
+                ["Rango", result.rango_de_fechas ? result.rango_de_fechas.join(" ") : "—"],
               ].map(([label, val]) => (
-                <div key={label} className="result-metric">
+                <div key={label} className="metric">
                   <p className="lbl">{label}</p>
                   <p className="val">{val}</p>
                 </div>
@@ -231,15 +227,19 @@ function CREGMonitor() {
             {activeTab === "documentos" && (
               <div>
                 <div className="filters-row">
-                  <select className="filter-select" value={filterArea} onChange={e => setFilterArea(e.target.value)}>
-                    <option>Todas</option>
-                    {uniqueAreas.map(a => <option key={a}>{a}</option>)}
-                  </select>
-                  <select className="filter-select" value={filterTipo} onChange={e => setFilterTipo(e.target.value)}>
-                    <option>Todos</option>
-                    {uniqueTipos.map(t => <option key={t}>{t}</option>)}
-                  </select>
-                  <span className="results-count">
+                  <label className="results-head">Áreas
+                    <select className="filter-select" value={filterArea} onChange={e => setFilterArea(e.target.value)}>
+                      <option>Todas</option>
+                      {uniqueAreas.map(a => <option key={a}>{a}</option>)}
+                    </select>
+                  </label>
+                  <label className="results-head">Tipo de documentos
+                   	<select className="filter-select" value={filterTipo} onChange={e => setFilterTipo(e.target.value)}>
+                    		<option>Todos</option>
+                    		{uniqueTipos.map(t => <option key={t}>{t}</option>)}
+                   	</select>
+                  </label>
+                  <span className="results-head">
                     {sortedDocs().length} resultado{sortedDocs().length !== 1 ? "s" : ""}
                   </span>
                 </div>
@@ -247,13 +247,13 @@ function CREGMonitor() {
                   <table className="docs-table">
                     <thead>
                       <tr>
-                        {th("Documento", "numero_nombre", "28%")}
+                        {th("Documento", "numero_nombre", "20%")}
                         {th("Fecha", "fecha", "9%")}
                         {th("Tipo", "tipo", "10%")}
-                        {th("Área", "area", "14%")}
+                        {th("Área", "area", "8%")}
                         {th("Relev.", "relevancia", "7%")}
                         {th("Confianza", "confianza", "8%")}
-                        <th className="th-plain" style={{ width: "24%" }}>Descripción</th>
+                        <th className="th-plain" style={{ width: "38%" }}>Descripción</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -343,7 +343,7 @@ function CREGMonitor() {
       {/* ══ Configurar panel ══ */}
       <div id="tab-config" className={`section${mainTab === 'config' ? ' active' : ''}`}>
         <div className="card card-mb">
-          <h2 className="h2-sm">Temas de interés</h2>
+          <h2 className="h2-sm">Áreas de interés</h2>
           <p className="card-subtitle">El agente alertará sobre resoluciones relacionadas con estos temas</p>
           <div className="topic-grid">
             {AREAS.map((a, i) => (
