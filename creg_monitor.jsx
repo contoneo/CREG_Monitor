@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { createRoot } from 'react-dom/client';
 import './creg_monitor.css';
 import { SEED_RESULT, mergeDedupe, mergeRango } from './data/seed.js';
@@ -58,6 +58,7 @@ function CREGMonitor() {
   const [areas, setAreas] = useState([...AREAS]);
   const [relevanciaMin, setRelevanciaMin] = useState(3);
   const [frecuencia, setFrecuencia] = useState(1);
+  const [darkMode, setDarkMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(SEED_RESULT);
@@ -68,6 +69,10 @@ function CREGMonitor() {
   const [filterArea, setFilterArea] = useState("Todas");
   const [filterTipo, setFilterTipo] = useState("Todos");
   const abortRef = useRef(null);
+
+  useEffect(() => {
+    document.body.classList.toggle('dark', darkMode);
+  }, [darkMode]);
 
   // Toggle handlers
   const toggleTipo = (t) =>
@@ -164,6 +169,16 @@ function CREGMonitor() {
         <div className="header-text">
           <h1>Monitor CREG</h1>
           <p>Comisión de Regulación de Energía y Gas · Colombia</p>
+        </div>
+        <div className="dark-mode-switcher">
+          <span className="dark-toggle-icon">{darkMode ? '☀️' : '🌙'}</span>
+          <button
+            className={`dark-toggle${darkMode ? ' on' : ''}`}
+            onClick={() => setDarkMode(d => !d)}
+            aria-label="Alternar modo oscuro"
+          >
+            <span className="dark-toggle-thumb" />
+          </button>
         </div>
       </div>
 

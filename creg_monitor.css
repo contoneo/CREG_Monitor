@@ -340,3 +340,92 @@ select {
 @keyframes spin { to { transform: rotate(360deg); } }
 
 h2 { font-size: 15px; font-weight: 500; }
+
+/* ── Dark mode palette (Claude dark) ── */
+body.dark {
+  --bg: #1e1e1c;
+  --surface: #27271f;
+  --surface2: #2f2f2a;
+  --border: rgba(255,255,255,0.08);
+  --border-md: rgba(255,255,255,0.14);
+  --text: #e8e8e4;
+  --text2: #9b9b8e;
+  --text3: #6b6b62;
+  --blue: #6b9fd4;
+  --blue-bg: #1c2e40;
+  --blue-text: #7db5e8;
+  --green-bg: #1c2d18;
+  --green-text: #7ab852;
+  --amber-bg: #2d2218;
+  --amber-text: #d4943a;
+  --red-bg: #2d1c1c;
+  --red-text: #d46b6b;
+}
+
+body.dark .pill-rel-5 { background: #1c2d18; color: #7ab852; }
+body.dark .pill-rel-4 { background: #1c2e40; color: #7db5e8; }
+body.dark .pill-rel-3 { background: #2d2218; color: #d4943a; }
+body.dark .pill-rel-2 { background: #2d1c1c; color: #d46b6b; }
+body.dark .pill-rel-1 { background: #2f2f2a; color: #9b9b8e; }
+body.dark .pill-conf-alta  { background: #1c2d18; color: #7ab852; }
+body.dark .pill-conf-media { background: #2d2218; color: #d4943a; }
+body.dark .pill-conf-baja  { background: #2d1c1c; color: #d46b6b; }
+
+/* Dark mode: primary action button — dark surface + light border */
+body.dark .btn-primary {
+  background: var(--surface2);
+  color: var(--text);
+  border-color: rgba(255,255,255,0.28);
+}
+body.dark .btn-primary:hover { background: #3a3a35; border-color: rgba(255,255,255,0.38); }
+body.dark .btn-primary.loading { background: var(--red-bg); color: var(--red-text); border-color: rgba(255,255,255,0.14); }
+
+/* Dark mode: topic/type chips in Configuración */
+body.dark .topic-chip { background: var(--bg); border-color: var(--border-md); }
+body.dark .topic-chip.on { background: var(--blue-bg); border-color: var(--blue); color: var(--blue-text); }
+
+/* Dark mode: range slider track */
+body.dark input[type=range]::-webkit-slider-runnable-track {
+  background: var(--surface2);
+  border-radius: 99px;
+  height: 4px;
+}
+body.dark input[type=range]::-moz-range-track {
+  background: var(--surface2);
+  border-radius: 99px;
+  height: 4px;
+}
+
+/* ── Dark mode toggle switch ── */
+.dark-mode-switcher {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.dark-toggle-icon { font-size: 15px; line-height: 1; }
+.dark-toggle {
+  position: relative;
+  width: 38px; height: 22px;
+  border-radius: 99px;
+  border: 1px solid var(--border-md);
+  background: var(--surface2);
+  cursor: pointer;
+  padding: 0;
+  transition: background .2s, border-color .2s;
+}
+.dark-toggle.on { background: var(--blue); border-color: var(--blue); }
+.dark-toggle-thumb {
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--text3);
+  transition: transform .2s, background .2s;
+  display: block;
+}
+.dark-toggle.on .dark-toggle-thumb {
+  transform: translateX(16px);
+  background: #fff;
+}
