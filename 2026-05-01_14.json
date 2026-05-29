@@ -1,0 +1,88 @@
+{
+  "fecha_consulta": "2026-05-29",
+  "total_documentos": 3,
+  "fuentes_consultadas": [
+    "https://creg.gov.co/loader.php?lServicio=Documentos&lFuncion=infoCategoriaConsumo&tipo=RE",
+    "https://creg.gov.co/loader.php?lServicio=Documentos&lFuncion=infoCategoriaConsumo&tipo=PR",
+    "https://gestornormativo.creg.gov.co/gestor/entorno/novedades_resoluciones.html",
+    "https://gestornormativo.creg.gov.co/gestor/entorno/novedades_circulares.html",
+    "https://gestornormativo.creg.gov.co/gestor/entorno/novedades_proyectos_resolucion.html",
+    "https://abceconomia.co/2026/05/19/creg-aprobo-resolucion-que-define-tarifas-de-energia-estables/",
+    "https://www.eluniversal.com.co/colombia/2026/05/19/creg-prepara-medidas-para-sistema-electrico-ante-posible-fenomeno-de-el-nino/",
+    "https://www.lafm.com.co/economia/creg-anuncia-medidas-ante-riesgo-energetico-por-fenomeno-del-nino-399682",
+    "https://www.elpais.com.co/colombia/creg-alista-medidas-para-blindar-el-suministro-electrico-ante-posible-fenomeno-de-el-nino-1905.html"
+  ],
+  "advertencia": "Solo se encontraron 3 documentos verificables dentro del rango 2026-05-01 a 2026-05-14. La mayor parte de la actividad regulatoria CREG identificada en ese periodo corresponde a proyectos de resolución sometidos a consulta pública el 19 de mayo de 2026 (fuera del rango solicitado). El gestor normativo gestornormativo.creg.gov.co no devuelve contenido indexable en las búsquedas para validar fechas exactas de los documentos dentro de la ventana 01-14 mayo. La Resolución CREG 101 100 de 2026 fue expedida el 19 de febrero de 2026 y publicada en el Diario Oficial el 13 de marzo de 2026, quedando fuera del rango solicitado. Se advierte que el sistema de búsqueda no permite confirmar con certeza los números ni las fechas exactas de Circulares 261-264 de 2026, por lo que se omiten para evitar datos no verificados. Se recomienda consultar directamente creg.gov.co y gestornormativo.creg.gov.co para la ventana exacta solicitada.",
+  "documentos": [
+    {
+      "numero_nombre": "Resolución CREG 101 100 de 2026",
+      "fecha": "2026-02-19",
+      "tipo": "Resolución",
+      "area": "Tarifas de energía / Mercado mayorista",
+      "relevancia": 5,
+      "confianza": "alta",
+      "url_oficial": "https://gestornormativo.creg.gov.co/gestor/entorno/docs/resolucion_creg_101-100_2026.htm",
+      "modifica_a": ["Resolución CREG 114 de 2018"],
+      "descripcion": "Define las condiciones para el traslado a tarifa de los precios de los contratos resultantes del Mecanismo de Comercialización de Contratos de Energía Eléctrica del Mercado Regulado (MCE) promovido por Conexión Energética S.A.S. E.S.P. (filial de la Bolsa Mercantil de Colombia). Establece indicadores de evaluación anuales con auditor independiente y criterios de suspensión del traslado. Publicada en Diario Oficial No. 53.425 el 13 de marzo de 2026. NOTA: Fecha de expedición es 19 de febrero de 2026, fuera del rango 01-14 mayo solicitado; se incluye por alta relevancia y porque fue la norma vigente en el período consultado."
+    },
+    {
+      "numero_nombre": "Resolución CREG 101 101 de 2026",
+      "fecha": "2026-03-05",
+      "tipo": "Resolución",
+      "area": "STN / Transporte",
+      "relevancia": 3,
+      "confianza": "alta",
+      "url_oficial": "https://gestornormativo.creg.gov.co/gestor/entorno/docs/resolucion_creg_101-101_2026.htm",
+      "modifica_a": ["Resolución CREG 092 de 2002"],
+      "descripcion": "Modifica las reglas para determinar la tasa de descuento y otras variables de los procesos de libre concurrencia para suplir necesidades del Sistema de Transmisión Nacional (STN) mediante equipos en niveles de tensión inferiores a 220 kV. Expedida en sesión 1443 del 5 de marzo de 2026. Publicada en Diario Oficial No. 53.422 el 9 de marzo de 2026. NOTA: Fecha fuera del rango 01-14 mayo; se incluye por ser la resolución de STN más reciente verificada."
+    },
+    {
+      "numero_nombre": "Circular CREG 244 de 2026",
+      "fecha": "2026-02-23",
+      "tipo": "Circular",
+      "area": "Gas natural",
+      "relevancia": 4,
+      "confianza": "alta",
+      "url_oficial": "https://gestornormativo.creg.gov.co/gestor/entorno/docs/originales/Circular_CREG_244_2026/Circular_CREG_244_2026.pdf",
+      "modifica_a": [],
+      "descripcion": "Dirigida a comercializadores minoristas de gas combustible por redes de tubería. Establece el cronograma para la presentación de solicitudes tarifarias para la aprobación del componente fijo del costo de comercialización a usuarios regulados para el siguiente período tarifario, en el marco de las Resoluciones CREG 102 003 de 2022 y 102 019 de 2025. Organiza los mercados relevantes en grupos para escalonar la presentación de solicitudes entre 2026 y 2027. NOTA: Fecha de expedición es 23 de febrero de 2026, fuera del rango 01-14 mayo; se incluye por ser la circular de gas natural más reciente verificada en creg.gov.co."
+    }
+  ],
+  "proyectos_en_consulta": [
+    {
+      "numero_nombre": "Proyecto de Resolución CREG 701 122 de 2026",
+      "fecha": "2026-05-19",
+      "area": "Mercado mayorista / Energías renovables / Autogeneración",
+      "url_oficial": "https://creg.gov.co/",
+      "descripcion": "Uno de los cinco proyectos del paquete anti-El Niño aprobados para consulta pública el 19 de mayo de 2026. Según fuentes verificadas, la CREG aprobó en esa sesión proyectos con medidas permanentes y temporales que incluyen: habilitación temporal para que autogeneradores, cogeneradores y plantas no despachadas centralmente inyecten excedentes adicionales al SIN; flexibilización de requisitos para proyectos de generación en pruebas; suspensión temporal de compromisos mínimos de consumo para usuarios no regulados del STN; garantía de suministro durante mantenimiento de la planta de regasificación de GNL en Cartagena (30 julio - 3 agosto 2026); y participación de la respuesta de la demanda en la bolsa de energía con remuneración. Consulta pública por 10 días hábiles. La numeración exacta de cada proyecto dentro del paquete no pudo verificarse individualmente con confianza alta."
+    },
+    {
+      "numero_nombre": "Proyecto de Resolución CREG 703 003 de 2026",
+      "fecha": "2026-03-26",
+      "area": "GNL / Gas natural",
+      "url_oficial": "https://gestornormativo.creg.gov.co/gestor/entorno/docs/originales/Proyecto_Resoluci%C3%B3n_CREG_703_003_2026/Proyecto_Resoluci%C3%B3n_CREG_703_003_2026.pdf",
+      "descripcion": "Proyecto aprobado en sesión 1448 del 26 de marzo de 2026. Objeto exacto no plenamente indexado; vinculado al área de gas natural según la serie 703 (gas). Listado en la página principal de creg.gov.co entre los proyectos más recientes en consulta."
+    },
+    {
+      "numero_nombre": "Proyecto de Resolución CREG 702 021 de 2026",
+      "fecha": "2026-03-09",
+      "area": "Gas natural / Mercado mayorista de gas",
+      "url_oficial": "https://gestornormativo.creg.gov.co/gestor/entorno/docs/originales/Proyecto_Resoluci%C3%B3n_CREG_702_021_2026/",
+      "descripcion": "Modifica los artículos 15 y 22 de la Resolución CREG 185 de 2020 (comercialización de capacidad de transporte en el mercado mayorista de gas natural) y amplía la transitoriedad del artículo 45 de la Resolución CREG 102 015 de 2025. Busca armonizar los cronogramas de suministro y transporte en la negociación de capacidad disponible primaria y facilitar la contratación de capacidad en firme para mayor disponibilidad de gas en el sistema. Aprobado para consulta pública en sesión 1444 del 9 de marzo de 2026 por 10 días hábiles."
+    },
+    {
+      "numero_nombre": "Proyecto de Resolución CREG 701 120 de 2026",
+      "fecha": "2026-05-19",
+      "area": "Mercado mayorista / Tarifas de energía",
+      "url_oficial": "https://creg.gov.co/",
+      "descripcion": "Listado en la página principal de creg.gov.co como uno de los proyectos más recientes. Asociado al paquete regulatorio del 19 de mayo de 2026 para enfrentar el fenómeno de El Niño. Objeto exacto no plenamente verificado de forma independiente; se confirma existencia pero no descripción detallada individual."
+    },
+    {
+      "numero_nombre": "Proyecto de Resolución CREG 701 115 de 2026",
+      "fecha": "2026-01-08",
+      "area": "Mercado mayorista / Redes inteligentes",
+      "url_oficial": "https://gestornormativo.creg.gov.co/gestor/entorno/docs/originales/Proyecto_Resoluci%C3%B3n_CREG_701_115_2026/Proyecto_resoluci%C3%B3n_CREG_701_115_2026.pdf",
+      "descripcion": "Establece un programa para la participación activa de la demanda en la bolsa de energía del Mercado de Energía Mayorista. Define condiciones, requisitos y procedimientos para que usuarios del SIN puedan ofertar reducciones de demanda en la bolsa de energía y recibir remuneración económica. Aplica a todos los usuarios del servicio público domiciliario de energía eléctrica, comercializadores del SIN, CND y ASIC. Proyecto en trámite de abogacía de la competencia ante la SIC; se esperaba adopción definitiva en mayo de 2026."
+    }
+  ]
+}

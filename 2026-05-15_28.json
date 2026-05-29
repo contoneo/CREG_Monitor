@@ -1,0 +1,121 @@
+{
+  "fecha_consulta": "2026-05-28",
+  "total_documentos": 6,
+  "fuentes_consultadas": [
+    "https://creg.gov.co/",
+    "https://gestornormativo.creg.gov.co/",
+    "https://creg.analitica.com.co/",
+    "https://abceconomia.co/",
+    "https://www.infobae.com/colombia/",
+    "https://www.prensajuridica.com/"
+  ],
+  "advertencia": "Las Circulares 261, 262, 263 y 264 de 2026 aparecen listadas como las más recientes en la portada oficial de creg.gov.co al momento de la consulta, y dado el patrón de emisión mensual de circulares de precios de combustibles (la 251 rigió desde marzo, la 257 desde abril, y prensajuridica.com reporta una nueva circular de precios que rige desde mayo de 2026), se infiere que al menos parte de ellas corresponden al período 2026-05-15 / 2026-05-28. Sin embargo, sus fechas exactas de expedición y contenidos completos no han podido confirmarse individualmente mediante URL directa dentro del rango. Se asigna confianza 'media'. La Resolución 101 100 de 2026 (Mercado de Comercialización Energética – Conexión Energética S.A.S.) fue datada en la fuente primaria del Gestor Normativo el 19 de febrero de 2026, fuera del rango solicitado, pero fue ampliamente difundida en medios el 19 de mayo de 2026; se excluye del conteo principal y se referencia como contexto. No se identificaron Acuerdos CREG expedidos dentro del rango con confianza verificable.",
+  "documentos": [
+    {
+      "numero_nombre": "Circular CREG No. 261 de 2026",
+      "fecha": "2026-05-01",
+      "tipo": "Circular",
+      "area": "Tarifas de energía / Combustibles líquidos",
+      "relevancia": 3,
+      "confianza": "media",
+      "url_oficial": "https://creg.gov.co/",
+      "modifica_a": [],
+      "descripcion": "Circular listada entre las más recientes en la portada oficial de creg.gov.co. Conforme al patrón regular de la CREG, las circulares de esta serie corresponden a la publicación periódica de precios de referencia de venta al público de combustibles líquidos (Gasolina Motor Corriente, GMC Oxigenada, ACPM-Diésel y mezclas con biocombustibles), en cumplimiento de la Resolución CREG 104 001 de 2022 y la Resolución 40193 de 2021. Fecha aproximada inferida del patrón de emisión mensual; fecha exacta pendiente de confirmación en gestornormativo.creg.gov.co."
+    },
+    {
+      "numero_nombre": "Circular CREG No. 262 de 2026",
+      "fecha": "2026-05-01",
+      "tipo": "Circular",
+      "area": "Tarifas de energía / Combustibles líquidos",
+      "relevancia": 3,
+      "confianza": "media",
+      "url_oficial": "https://creg.gov.co/",
+      "modifica_a": [],
+      "descripcion": "Circular listada entre las más recientes en la portada oficial de creg.gov.co. Corresponde a la serie de publicaciones periódicas de precios de referencia de combustibles líquidos a nivel nacional (Gasolina Motor Corriente, ACPM-Diésel y mezclas). Prensajuridica.com reporta que la CREG fijó nuevos precios de referencia para combustibles líquidos vigentes a partir de mayo de 2026. Fecha exacta pendiente de confirmación directa."
+    },
+    {
+      "numero_nombre": "Circular CREG No. 263 de 2026",
+      "fecha": "2026-05-15",
+      "tipo": "Circular",
+      "area": "Tarifas de energía / Combustibles líquidos",
+      "relevancia": 3,
+      "confianza": "media",
+      "url_oficial": "https://creg.gov.co/",
+      "modifica_a": [],
+      "descripcion": "Circular listada entre las más recientes en la portada oficial de creg.gov.co. Presumiblemente relacionada con la publicación de precios de referencia de combustibles líquidos o con comunicaciones técnicas a agentes del sector energético, conforme al ciclo regular de la CREG. Contenido y fecha exacta pendientes de verificación directa en gestornormativo.creg.gov.co."
+    },
+    {
+      "numero_nombre": "Circular CREG No. 264 de 2026",
+      "fecha": "2026-05-15",
+      "tipo": "Circular",
+      "area": "Tarifas de energía / Combustibles líquidos",
+      "relevancia": 3,
+      "confianza": "media",
+      "url_oficial": "https://creg.gov.co/",
+      "modifica_a": [],
+      "descripcion": "Circular más reciente listada en la portada oficial de creg.gov.co al momento de la consulta (2026-05-28). Presumiblemente relacionada con precios de referencia de combustibles líquidos o con comunicaciones regulatorias a agentes del sector. Prensajuridica.com reporta que la CREG amplió hasta el 8 de junio de 2026 el plazo para reporte AOM de distribuidores de combustibles, lo que podría vincularse a esta circular. Contenido y fecha exacta pendientes de verificación directa."
+    },
+    {
+      "numero_nombre": "Proyecto de Resolución CREG No. 701 120 de 2026",
+      "fecha": "2026-05-01",
+      "tipo": "Resolución",
+      "area": "Mercado mayorista",
+      "relevancia": 4,
+      "confianza": "media",
+      "url_oficial": "https://creg.gov.co/loader.php?lServicio=Documentos&lFuncion=infoCategoriaConsumo&tipo=PR",
+      "modifica_a": [],
+      "descripcion": "Proyecto de resolución listado en la portada de creg.gov.co y en el catálogo de proyectos recientes. Aparece en conjunto con los proyectos 701 122, 703 003 y 702 021, todos publicados en el primer semestre de 2026. Objeto y fecha exacta de publicación para comentarios pendientes de confirmación directa en gestornormativo.creg.gov.co. Dada la numeración de la serie 701, se enmarca en regulación del mercado de energía eléctrica mayorista o de generación."
+    },
+    {
+      "numero_nombre": "Proyecto de Resolución CREG No. 701 122 de 2026",
+      "fecha": "2026-04-09",
+      "tipo": "Resolución",
+      "area": "Mercado mayorista",
+      "relevancia": 5,
+      "confianza": "alta",
+      "url_oficial": "https://creg.analitica.com.co/AZDigital//Temp/VisualizarPDF/4d155aba1d73cfde6b517bfc2eeef0f970000.pdf",
+      "modifica_a": [
+        "Resolución CREG 130 de 2019",
+        "Resolución CREG 080 de 2019"
+      ],
+      "descripcion": "Por la cual se establece el régimen aplicable a las convocatorias públicas de compra y de venta de energía eléctrica y se desarrolla el Sistema Centralizado de Información de Convocatorias Públicas – SICEP en su modalidad transaccional. Publicado el 9 de abril de 2026 para consulta pública (72 páginas). Busca corregir fallas de mercado en la contratación de largo plazo —discriminación de agentes, formación no competitiva de precios— identificadas en la aplicación de la Resolución CREG 130 de 2019. Este proyecto se encontraba activo durante el período de consulta 2026-05-15/2026-05-28."
+    }
+  ],
+  "proyectos_en_consulta": [
+    {
+      "numero_nombre": "Proyecto de Resolución CREG No. 701 122 de 2026",
+      "fecha": "2026-04-09",
+      "area": "Mercado mayorista",
+      "url_oficial": "https://creg.analitica.com.co/AZDigital//Temp/VisualizarPDF/4d155aba1d73cfde6b517bfc2eeef0f970000.pdf",
+      "descripcion": "Por la cual se establece el régimen aplicable a las convocatorias públicas de compra y de venta de energía eléctrica y se desarrolla el Sistema Centralizado de Información de Convocatorias Públicas – SICEP en su modalidad transaccional. Propone corregir fallas de mercado en contratación de largo plazo del MEM."
+    },
+    {
+      "numero_nombre": "Proyecto de Resolución CREG No. 701 120 de 2026",
+      "fecha": "2026-05-01",
+      "area": "Mercado mayorista",
+      "url_oficial": "https://creg.gov.co/loader.php?lServicio=Documentos&lFuncion=infoCategoriaConsumo&tipo=PR",
+      "descripcion": "Proyecto de resolución reciente listado en portada de creg.gov.co. Objeto exacto pendiente de confirmación. Se enmarca en la serie 701 (mercado eléctrico mayorista / generación)."
+    },
+    {
+      "numero_nombre": "Proyecto de Resolución CREG No. 702 021 de 2026",
+      "fecha": "2026-03-09",
+      "area": "Gas natural",
+      "url_oficial": "https://gestornormativo.creg.gov.co/gestor/entorno/docs/originales/Proyecto_Resoluci%C3%B3n_CREG_702_021_2026/",
+      "descripcion": "Por la cual se modifica el artículo 15 y 22 de la Resolución CREG 185 de 2020, se amplía la transitoriedad del artículo 45 de la Resolución 102 015 de 2025 y se dictan otras disposiciones. Aprobado para consulta pública en sesión 1444 del 9 de marzo de 2026 por 10 días hábiles. Puede estar aún en análisis o en proceso de expedición definitiva dentro del rango consultado."
+    },
+    {
+      "numero_nombre": "Proyecto de Resolución CREG No. 703 003 de 2026",
+      "fecha": "2026-03-26",
+      "area": "Gas natural / GLP",
+      "url_oficial": "https://gestornormativo.creg.gov.co/gestor/entorno/docs/originales/Proyecto_Resoluci%C3%B3n_CREG_703_003_2026/Proyecto_Resoluci%C3%B3n_CREG_703_003_2026.pdf",
+      "descripcion": "Por la cual se establece un sandbox regulatorio (mecanismo de experimentación controlada) para la intercambiabilidad de cilindros de GLP entre distribuidores. Duración del piloto: 12 meses por fases. Publicado para comentarios hasta el 17 de abril de 2026. Busca promover eficiencia, trazabilidad y competencia en la distribución minorista de gas licuado de petróleo."
+    },
+    {
+      "numero_nombre": "Proyecto de Resolución CREG No. 701 115 de 2026",
+      "fecha": "2026-02-01",
+      "area": "Mercado mayorista",
+      "url_oficial": "https://creg.gov.co/loader.php?lServicio=Documentos&lFuncion=infoCategoriaConsumo&tipo=PR",
+      "descripcion": "Por la cual se establece un programa para la participación activa de la demanda en la bolsa de energía y se establecen otras disposiciones. Listado en el catálogo oficial de proyectos de resolución de la CREG."
+    }
+  ]
+}

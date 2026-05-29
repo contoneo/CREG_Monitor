@@ -1,0 +1,28 @@
+I'd like to have the functions 
+    scanCREG
+    searchCREG
+    openCREG
+available in an agent or artifact in my account to tests them with my pro plan
+
+userPrompt = "Eres un monitor regulatorio especializado en Colombia. 
+Basándote en tu conocimiento sobre la CREG (Comisión de Regulación de Energía y Gas), lista las resoluciones, circulares y acuerdos más relevantes de 2024 y 2025 en estas áreas: Tarifas de energía, Gas natural, Energías renovables, Mercado mayorista, Distribución eléctrica, GNL, Subsidios, Redes inteligentes, Autogeneración, STN / Transporte.
+
+Devuelve EXACTAMENTE este formato para cada documento (mínimo 6 ítems):
+
+1. Número y nombre del documento: [ej: Resolución CREG 101 de 2024]
+Fecha: [fecha]
+Tipo: [Resolución / Circular / Acuerdo]
+Relevancia: [1-5]
+[Descripción en una oración]
+No uses markdown extra, solo el formato indicado."
+
+systemPrompt = "Eres experto en regulación energética colombiana. Responde solo en español. Sé preciso con números de resoluciones reales de la CREG."
+
+
+{"Tipos": ["Resolución", "Circular", "Acuerdo"],
+"Rango": ["2025-01-01","2026-05-20"],
+"Areas": ["Tarifas de energía", "Gas natural", "Energías renovables", "Mercado mayorista", "Distribución eléctrica", "GNL", "Subsidios", "Redes inteligentes", "Autogeneración", "STN / Transporte"]}
+
+{"Tipos": ["Resolución", "Circular"],
+"Rango": ["2025-01-01","2026-05-20"],
+"Areas": ["Tarifas de energía", "Gas natural", "Energías renovables", "Mercado mayorista", "Distribución eléctrica", "GNL", "Subsidios", "Autogeneración"]}

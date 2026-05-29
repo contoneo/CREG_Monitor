@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Monitor CREG</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f9f9f7;
+    --surface: #ffffff;
+    --surface2: #f3f3f0;
+    --border: rgba(0,0,0,0.10);
+    --border-md: rgba(0,0,0,0.18);
+    --text: #1a1a18;
+    --text2: #6b6b65;
+    --text3: #9b9b94;
+    --blue: #185FA5;
+    --blue-bg: #E6F1FB;
+    --blue-text: #0C447C;
+    --green-bg: #EAF3DE;
+    --green-text: #3B6D11;
+    --amber-bg: #FAEEDA;
+    --amber-text: #854F0B;
+    --red-bg: #FCEBEB;
+    --red-text: #A32D2D;
+    --radius: 10px;
+    --radius-lg: 14px;
+  }
+
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  /* ── Layout ── */
+  .shell {
+    max-width: 820px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+  }
+
+  /* ── Header ── */
+  .header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 0.5px solid var(--border);
+  }
+  .logo {
+    width: 44px; height: 44px;
+    border-radius: var(--radius);
+    background: var(--blue-bg);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+  }
+  .header-text h1 { font-size: 18px; font-weight: 600; }
+  .header-text p  { font-size: 13px; color: var(--text2); }
+  .status {
+    margin-left: auto;
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--text2);
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #3B6D11; }
+
+  /* ── API key notice ── */
+  .api-notice {
+    background: var(--amber-bg);
+    border: 0.5px solid rgba(186,117,23,0.3);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    margin-bottom: 1.5rem;
+    font-size: 13px;
+    color: var(--amber-text);
+    display: flex; gap: 10px; align-items: flex-start;
+  }
+  .api-notice input {
+    margin-top: 8px;
+    width: 100%;
+    padding: 7px 11px;
+    border: 0.5px solid rgba(186,117,23,0.4);
+    border-radius: 8px;
+    font-size: 13px;
+    background: #fffdf7;
+    color: var(--text);
+    font-family: monospace;
+  }
+
+  /* ── Tabs ── */
+  .tabs {
+    display: flex; gap: 2px;
+    border-bottom: 0.5px solid var(--border);
+    margin-bottom: 1.5rem;
+  }
+  .tab {
+    padding: 9px 18px;
+    font-size: 14px;
+    border: none; background: none; cursor: pointer;
+    color: var(--text2);
+    border-bottom: 2px solid transparent;
+    transition: all .15s;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .tab.active { color: var(--text); border-bottom-color: var(--text); font-weight: 500; }
+  .tab:hover:not(.active) { color: var(--text); }
+
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.1rem 1.4rem;
+    margin-bottom: 1rem;
+  }
+
+  /* ── Metrics ── */
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 1.5rem;
+  }
+  .metric {
+    background: var(--surface2);
+    border-radius: var(--radius);
+    padding: 1rem;
+    text-align: center;
+  }
+  .metric .val { font-size: 26px; font-weight: 600; line-height: 1.2; color: var(--blue); }
+  .metric .lbl { font-size: 12px; color: var(--text2); margin-top: 4px; }
+
+  /* ── Badges ── */
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 20px;
+    font-size: 12px; font-weight: 500;
+  }
+  .badge-blue   { background: var(--blue-bg);   color: var(--blue-text); }
+  .badge-green  { background: var(--green-bg);  color: var(--green-text); }
+  .badge-amber  { background: var(--amber-bg);  color: var(--amber-text); }
+  .badge-gray   { background: var(--surface2);  color: var(--text2); }
+
+  /* ── Resolution items ── */
+  .res-item {
+    border-bottom: 0.5px solid var(--border);
+    padding: 14px 0;
+  }
+  .res-item:first-child { padding-top: 0; }
+  .res-item:last-child  { border-bottom: none; padding-bottom: 0; }
+  .res-header {
+    display: flex; align-items: flex-start;
+    justify-content: space-between; gap: 8px;
+    margin-bottom: 5px;
+  }
+  .res-title { font-size: 14px; font-weight: 500; flex: 1; }
+  .res-meta  { font-size: 12px; color: var(--text2); margin-bottom: 6px; }
+  .res-desc  { font-size: 13px; color: var(--text2); line-height: 1.6; }
+
+  /* ── Relevance bar ── */
+  .rel-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .rel-row span { font-size: 11px; color: var(--text3); }
+  .prog { height: 4px; flex: 1; max-width: 80px; background: var(--border); border-radius: 4px; }
+  .prog-fill { height: 100%; border-radius: 4px; background: var(--blue); }
+
+  /* ── Buttons ── */
+  .res-actions { display: flex; gap: 8px; margin-top: 10px; }
+  .btn-sm {
+    padding: 5px 12px; font-size: 12px;
+    border: 0.5px solid var(--border-md);
+    border-radius: 8px; background: transparent;
+    cursor: pointer; color: var(--text);
+    display: flex; align-items: center; gap: 4px;
+    transition: background .12s;
+  }
+  .btn-sm:hover { background: var(--surface2); }
+  .btn-sm:disabled { opacity: .5; cursor: not-allowed; }
+
+  .btn {
+    padding: 8px 18px; font-size: 13px;
+    border: 0.5px solid var(--border-md);
+    border-radius: var(--radius); background: var(--surface);
+    cursor: pointer; color: var(--text);
+    display: inline-flex; align-items: center; gap: 6px;
+    transition: all .15s;
+  }
+  .btn:hover { background: var(--surface2); }
+  .btn:active { transform: scale(.98); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-primary {
+    background: var(--text); color: #fff;
+    border-color: var(--text);
+  }
+  .btn-primary:hover { background: #333; }
+
+  /* ── AI summary box ── */
+  .ai-box {
+    background: var(--surface2);
+    border-radius: var(--radius);
+    padding: 1rem;
+    margin-top: 10px;
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--text);
+    display: none;
+  }
+  .ai-label {
+    font-size: 11px; font-weight: 600;
+    color: var(--blue); margin-bottom: 6px;
+    text-transform: uppercase; letter-spacing: .04em;
+    display: flex; align-items: center; gap: 5px;
+  }
+
+  /* ── Spinner ── */
+  .spinner {
+    display: inline-block; width: 13px; height: 13px;
+    border: 2px solid var(--border-md);
+    border-top-color: var(--blue);
+    border-radius: 50%;
+    animation: spin .6s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Search ── */
+  .search-bar { display: flex; gap: 8px; margin-bottom: 1rem; }
+  .search-bar input {
+    flex: 1; padding: 9px 13px;
+    border: 0.5px solid var(--border-md);
+    border-radius: var(--radius); font-size: 14px;
+    background: var(--surface); color: var(--text);
+  }
+  .search-bar input:focus { outline: 2px solid var(--blue); outline-offset: 1px; }
+
+  .filter-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 1rem; }
+  .filter-btn {
+    padding: 5px 14px; font-size: 12px;
+    border: 0.5px solid var(--border);
+    border-radius: 20px; background: transparent;
+    cursor: pointer; color: var(--text2);
+    transition: all .12s;
+  }
+  .filter-btn.on { background: var(--surface2); color: var(--text); border-color: var(--border-md); }
+
+  /* ── Alerts ── */
+  .alert-row {
+    display: flex; align-items: flex-start;
+    gap: 12px; padding: 12px 0;
+    border-bottom: 0.5px solid var(--border);
+  }
+  .alert-row:last-child { border-bottom: none; }
+  .alert-icon {
+    width: 34px; height: 34px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; font-size: 16px;
+  }
+  .alert-icon.high { background: var(--red-bg);   color: var(--red-text); }
+  .alert-icon.med  { background: var(--amber-bg); color: var(--amber-text); }
+  .alert-icon.low  { background: var(--green-bg); color: var(--green-text); }
+
+  /* ── Topics ── */
+  .topic-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 8px; margin-top: 12px;
+  }
+  .topic-chip {
+    padding: 9px 12px; border: 0.5px solid var(--border);
+    border-radius: var(--radius); font-size: 13px;
+    cursor: pointer; display: flex; align-items: center; gap: 7px;
+    background: var(--surface); transition: all .12s;
+    user-select: none;
+  }
+  .topic-chip.on {
+    border-color: var(--blue);
+    background: var(--blue-bg); color: var(--blue-text);
+  }
+
+  /* ── Empty state ── */
+  .empty {
+    text-align: center; padding: 2.5rem 1rem;
+    color: var(--text2); font-size: 14px;
+  }
+  .empty .icon { font-size: 28px; margin-bottom: 10px; }
+
+  /* ── Error box ── */
+  .error-box {
+    background: var(--red-bg);
+    border: 0.5px solid rgba(163,45,45,.25);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    font-size: 13px; color: var(--red-text);
+    margin-top: 6px;
+  }
+
+  /* ── Misc ── */
+  .row-apart {
+    display: flex; align-items: center;
+    justify-content: space-between; gap: 8px;
+    margin-bottom: 1rem;
+  }
+  h2 { font-size: 15px; font-weight: 500; }
+  label { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; }
+  select {
+    padding: 8px 12px;
+    border: 0.5px solid var(--border-md);
+    border-radius: var(--radius); font-size: 13px;
+    background: var(--surface); color: var(--text);
+  }
+  input[type=range] { width: 100%; accent-color: var(--blue); }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo">⚡</div>
+    <div class="header-text">
+      <h1>Monitor CREG</h1>
+      <p>Comisión de Regulación de Energía y Gas · Colombia</p>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('dashboard')">Publicaciones recientes</button>
+    <button class="tab" onclick="switchTab('config')">⚙️ Configurar</button>
+  </div>
+
+  <!-- ══ PANEL ══ -->
+  <div id="tab-dashboard" class="section active">
+    <div class="metrics">
+      <div class="metric"><div class="val" id="m-resoluciones">0</div><div class="lbl">Resoluciones</div></div>
+      <div class="metric"><div class="val" id="m-circulares">0</div><div class="lbl">Circulares</div></div>
+      <div class="metric"><div class="val" id="m-acuerdos">0</div><div class="lbl">Acuerdos</div></div>
+      <div class="metric"><div class="val" id="m-conceptos">0</div><div class="lbl">Conceptos técnicos</div></div>
+    </div>
+
+    <div class="row-apart">
+      <button class="btn btn-primary" id="btn-scan" onclick="scanCREG()">⟳ Escanear ahora</button>
+    </div>
+
+    <div class="card" id="res-list">
+      <div class="empty">
+        <div class="icon">📄</div>
+        <p style="font-weight:500;margin-bottom:4px">Sin datos aún</p>
+        <p style="font-size:13px;color:var(--text3)">Haz clic en "Escanear ahora" para consultar<br>las últimas resoluciones de la CREG.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ CONFIGURAR ══ -->
+  <div id="tab-config" class="section">
+    <div class="card" style="margin-bottom:1rem">
+      <h2 style="margin-bottom:4px">Temas de interés</h2>
+      <p style="font-size:13px;color:var(--text2);margin-bottom:12px">El agente alertará sobre resoluciones relacionadas con estos temas</p>
+      <div class="topic-grid" id="topic-grid">
+        <div class="topic-chip on" onclick="toggleTopic(this)" data-topic="Tarifas de energía">⚡ Tarifas de energía</div>
+        <div class="topic-chip on" onclick="toggleTopic(this)" data-topic="Gas natural">🔥 Gas natural</div>
+        <div class="topic-chip on" onclick="toggleTopic(this)" data-topic="Energías renovables">☀️ Energías renovables</div>
+        <div class="topic-chip" onclick="toggleTopic(this)" data-topic="Mercado mayorista">📈 Mercado mayorista</div>
+        <div class="topic-chip" onclick="toggleTopic(this)" data-topic="Distribución eléctrica">🔌 Distribución eléctrica</div>
+        <div class="topic-chip" onclick="toggleTopic(this)" data-topic="GNL">💧 GNL</div>
+        <div class="topic-chip on" onclick="toggleTopic(this)" data-topic="Subsidios y contribuciones">🧾 Subsidios</div>
+        <div class="topic-chip" onclick="toggleTopic(this)" data-topic="Redes inteligentes">🧠 Redes inteligentes</div>
+        <div class="topic-chip" onclick="toggleTopic(this)" data-topic="Autogeneración">🔋 Autogeneración</div>
+        <div class="topic-chip" onclick="toggleTopic(this)" data-topic="STN transporte">🏗️ STN / Transporte</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:1rem">
+      <h2 style="margin-bottom:12px">Relevancia mínima para alertas</h2>
+      <div style="display:flex;align-items:center;gap:12px">
+        <input type="range" min="1" max="5" value="3" id="relevancia-slider" oninput="document.getElementById('rel-val').textContent=this.value+'/5'">
+        <span id="rel-val" style="font-size:14px;font-weight:500;min-width:30px">3/5</span>
+      </div>
+      <p style="font-size:12px;color:var(--text3);margin-top:6px">Solo recibirás alertas con puntuación igual o superior</p>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-bottom:12px">Tipo de documentos</h2>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <label><input type="checkbox" checked id="chk-res"> Resoluciones</label>
+        <label><input type="checkbox" checked id="chk-cir"> Circulares</label>
+        <label><input type="checkbox" id="chk-acu"> Acuerdos</label>
+        <label><input type="checkbox" id="chk-con"> Conceptos técnicos</label>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /shell -->
+
+<script>
+/* ─── Estado global ─── */
+let apiKey = '';
+let activeFilter = 'Todos';
+let alertsData = [];
+
+/* ─── API Key ─── */
+function saveKey(val) {
+  apiKey = val.trim();
+  if (apiKey.startsWith('sk-ant')) {
+    document.getElementById('api-notice').style.borderColor = 'rgba(59,109,17,.4)';
+    document.getElementById('api-notice').style.background = 'var(--green-bg)';
+  }
+}
+
+/* ─── Tabs ─── */
+function switchTab(t) {
+  const ids = ['dashboard','config'];
+  document.querySelectorAll('.tab').forEach((b, i) => b.classList.toggle('active', ids[i] === t));
+  ids.forEach(id => document.getElementById('tab-'+id).classList.toggle('active', id === t));
+}
+
+/* ─── Filtros ─── */
+function toggleFilter(el, val) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('on'));
+  el.classList.add('on');
+  activeFilter = val;
+}
+
+function toggleTopic(el) { el.classList.toggle('on'); }
+
+function getActiveTopics() {
+  return Array.from(document.querySelectorAll('.topic-chip.on')).map(e => e.dataset.topic);
+}
+
+/* ─── Claude API ─── */
+async function callClaude(userPrompt, systemPrompt) {
+  if (!apiKey) throw new Error('Falta la clave API. Ingrésala en la sección "Configurar" o arriba.');
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      /* web search beta si la cuenta lo tiene habilitado: */
+      /* 'anthropic-beta': 'web-search-2025-03-05', */
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1200,
+      system: systemPrompt || 'Eres un experto en regulación energética colombiana. Responde siempre en español.',
+      messages: [{ role: 'user', content: userPrompt }]
+    })
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `HTTP ${res.status}`);
+  }
+
+  const data = await res.json();
+  return data.content.map(b => b.type === 'text' ? b.text : '').join('\n').trim();
+}
+
+/* ─── Parsear respuesta en lista de ítems ─── */
+function parseResolutions(text) {
+  const blocks = text.split(/\n(?=\d+\.\s)/);
+  const items = [];
+  for (const block of blocks) {
+    const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
+    if (!lines.length) continue;
+    const titleMatch = lines[0].match(/^\d+\.\s+(.+)/);
+    if (!titleMatch) continue;
+    const item = { title: titleMatch[1], meta: '', desc: '', relevancia: 3, tipo: 'Resolución' };
+    for (let i = 1; i < lines.length; i++) {
+      const l = lines[i];
+      if (/^fecha:/i.test(l))      item.meta      = l.replace(/^fecha:\s*/i, '');
+      else if (/^tipo:/i.test(l))  item.tipo      = l.replace(/^tipo:\s*/i, '');
+      else if (/^relev/i.test(l))  item.relevancia = parseInt(l.replace(/\D/g,'')) || 3;
+      else if (!item.desc && l.length > 30) item.desc = l;
+    }
+    items.push(item);
+  }
+  return items;
+}
+
+/* ─── Helpers de renderizado ─── */
+function badgeFor(tipo) {
+  if (/resoluc/i.test(tipo)) return '<span class="badge badge-blue">Resolución</span>';
+  if (/circular/i.test(tipo)) return '<span class="badge badge-green">Circular</span>';
+  if (/acuerdo/i.test(tipo)) return '<span class="badge badge-amber">Acuerdo</span>';
+  return '<span class="badge badge-gray">Documento</span>';
+}
+
+function relevBar(r) {
+  const pct = Math.round((r / 5) * 100);
+  return `<div class="rel-row">
+    <span>Relevancia ${r}/5</span>
+    <div class="prog"><div class="prog-fill" style="width:${pct}%"></div></div>
+  </div>`;
+}
+
+function itemHTML(item) {
+  const sid = 'sum-' + Math.random().toString(36).slice(2, 9);
+  const enc = encodeURIComponent(item.title);
+  return `
+  <div class="res-item">
+    <div class="res-header">
+      <div class="res-title">${item.title}</div>
+      ${badgeFor(item.tipo)}
+    </div>
+    <div class="res-meta">${item.meta || ''}</div>
+    ${item.desc ? `<div class="res-desc">${item.desc}</div>` : ''}
+    ${relevBar(item.relevancia)}
+    <div class="res-actions">
+      <button class="btn-sm" onclick="summarizeItem(this,'${enc}','${sid}')">✨ Resumir</button>
+      <button class="btn-sm" onclick="openCREG('${enc}')">↗ Ver en CREG</button>
+    </div>
+    <div class="ai-box" id="${sid}"></div>
+  </div>`;
+}
+
+/* ─── Alertas ─── */
+function maybeAlert(item) {
+  const topics = getActiveTopics();
+  const minRel = parseInt(document.getElementById('relevancia-slider').value) || 3;
+  if (item.relevancia < minRel) return;
+  const titleLow = item.title.toLowerCase();
+  const matched = topics.some(t => titleLow.includes(t.split(' ')[0].toLowerCase()));
+  if (!matched && item.relevancia < 4) return;
+
+  const level = item.relevancia >= 4 ? 'high' : item.relevancia >= 3 ? 'med' : 'low';
+  const icon  = item.relevancia >= 4 ? '⚠️' : 'ℹ️';
+  const label = item.relevancia >= 4 ? 'Alta prioridad' : 'Media prioridad';
+  alertsData.unshift({ level, icon, label, title: item.title, meta: item.meta, desc: item.desc });
+
+  const count = alertsData.length;
+  document.getElementById('m-alertas').textContent = count;
+  document.getElementById('alert-count-badge').textContent = count + ' alerta' + (count === 1 ? '' : 's');
+  document.getElementById('alert-badge').textContent = count;
+  document.getElementById('alert-badge').style.display = 'inline';
+  renderAlerts();
+}
+
+function renderAlerts() {
+  const list = document.getElementById('alerts-list');
+  if (!alertsData.length) {
+    list.innerHTML = '<div class="empty"><div class="icon">🔕</div><p style="font-size:13px">Sin alertas aún</p></div>';
+    return;
+  }
+  list.innerHTML = alertsData.map(a => `
+    <div class="alert-row">
+      <div class="alert-icon ${a.level}">${a.icon}</div>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:500;margin-bottom:3px">${a.title.length > 80 ? a.title.slice(0,80)+'…' : a.title}</div>
+        <div style="font-size:12px;color:var(--text2)">${a.label}${a.meta ? ' · '+a.meta : ''}</div>
+        ${a.desc ? `<div style="font-size:12px;color:var(--text3);margin-top:3px;line-height:1.5">${a.desc.slice(0,130)}…</div>` : ''}
+      </div>
+    </div>`).join('');
+}
+
+/* ─── Escanear ─── */
+async function scanCREG() {
+  if (!apiKey) { alert('Primero ingresa tu clave API de Anthropic.'); return; }
+  const btn = document.getElementById('btn-scan');
+  const list = document.getElementById('res-list');
+  btn.disabled = true;
+  btn.textContent = 'Escaneando…';
+  list.innerHTML = '<div style="padding:1rem;font-size:13px;color:var(--text2);display:flex;gap:8px;align-items:center"><span class="spinner"></span> Consultando publicaciones recientes de la CREG…</div>';
+
+  const topics = getActiveTopics().slice(0, 4).join(', ') || 'tarifas, gas, electricidad';
+
+  const prompt = `Eres un monitor regulatorio especializado en Colombia. 
+Basándote en tu conocimiento sobre la CREG (Comisión de Regulación de Energía y Gas), 
+lista las resoluciones, circulares y acuerdos más relevantes de 2024 y 2025 en estas áreas: ${topics}.
+
+Devuelve EXACTAMENTE este formato para cada documento (mínimo 6 ítems):
+
+1. [Número y nombre del documento, ej: Resolución CREG 101 de 2024]
+Fecha: [mes y año aproximado]
+Tipo: [Resolución / Circular / Acuerdo]
+Relevancia: [número del 1 al 5]
+[Una oración concisa explicando qué regula o cambia]
+
+No uses markdown extra, solo el formato indicado.`;
+
+  try {
+    const response = await callClaude(prompt, 'Eres experto en regulación energética colombiana. Responde solo en español. Sé preciso con números de resoluciones reales de la CREG.');
+    const items = parseResolutions(response);
+
+    if (items.length === 0) {
+      list.innerHTML = `<div class="card"><div class="ai-box" style="display:block">
+        <div class="ai-label">🤖 Respuesta del agente</div>
+        ${response.replace(/\n/g,'<br>')}
+      </div></div>`;
+    } else {
+      document.getElementById('m-total').textContent = items.length + '+';
+      document.getElementById('m-recientes').textContent = items.filter(i => i.relevancia >= 3).length + '';
+      document.getElementById('m-circulares').textContent = items.filter(i => /circular/i.test(i.tipo)).length + '';
+      list.innerHTML = items.map(itemHTML).join('');
+      items.forEach(maybeAlert);
+    }
+  } catch(e) {
+    list.innerHTML = `<div class="error-box">❌ <strong>Error:</strong> ${e.message}</div>`;
+  }
+
+  btn.disabled = false;
+  btn.textContent = '⟳ Escanear ahora';
+}
+
+/* ─── Buscar ─── */
+async function searchCREG() {
+  if (!apiKey) { alert('Primero ingresa tu clave API de Anthropic.'); return; }
+  const q = document.getElementById('search-q').value.trim();
+  if (!q) return;
+  const results = document.getElementById('search-results');
+  results.innerHTML = `<div style="padding:1rem;font-size:13px;color:var(--text2);display:flex;gap:8px;align-items:center"><span class="spinner"></span> Buscando "${q}"…</div>`;
+
+  const tipo = activeFilter === 'Todos' ? 'resoluciones, circulares y acuerdos' : 'documentos tipo ' + activeFilter;
+
+  const prompt = `Lista ${tipo} de la CREG Colombia relacionados con: "${q}".
+
+Formato obligatorio para cada resultado:
+
+1. [Título del documento]
+Fecha: [fecha]
+Tipo: [Resolución / Circular / Acuerdo]
+Relevancia: [1-5]
+[Descripción en una oración]
+
+Mínimo 4 resultados. Sin markdown extra.`;
+
+  try {
+    const response = await callClaude(prompt, 'Eres experto en regulación energética colombiana. Solo español.');
+    const items = parseResolutions(response);
+    if (items.length === 0) {
+      results.innerHTML = `<div class="card"><div class="ai-box" style="display:block">
+        <div class="ai-label">🤖 Resultado</div>${response.replace(/\n/g,'<br>')}</div></div>`;
+    } else {
+      results.innerHTML = '<div class="card">' + items.map(itemHTML).join('') + '</div>';
+    }
+  } catch(e) {
+    results.innerHTML = `<div class="error-box">❌ <strong>Error:</strong> ${e.message}</div>`;
+  }
+}
+
+/* ─── Resumir ítem ─── */
+async function summarizeItem(btn, enc, sid) {
+  const title = decodeURIComponent(enc);
+  const box = document.getElementById(sid);
+  if (!box) return;
+  if (box.style.display === 'block' && box.innerHTML) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  box.innerHTML = '<div class="ai-label"><span class="spinner"></span> Generando resumen…</div>';
+  btn.disabled = true;
+
+  try {
+    const summary = await callClaude(
+      `Proporciona un análisis regulatorio breve de "${title}" de la CREG Colombia. Incluye: 1) Qué regula o modifica, 2) A quién afecta, 3) Fecha de vigencia aproximada, 4) Impacto en el sector energético. Máximo 100 palabras.`,
+      'Eres experto en regulación energética colombiana. Responde en español, de forma técnica y concisa.'
+    );
+    box.innerHTML = `<div class="ai-label">🤖 Resumen IA</div>${summary.replace(/\n\n/g,'<br><br>').replace(/\n/g,'<br>')}`;
+  } catch(e) {
+    box.innerHTML = `<div class="error-box">❌ ${e.message}</div>`;
+  }
+  btn.disabled = false;
+}
+
+/* ─── Abrir en CREG ─── */
+function openCREG(enc) {
+  const title = decodeURIComponent(enc);
+  const q = encodeURIComponent('CREG Colombia ' + title);
+  window.open('https://www.creg.gov.co/index.php/es/busqueda?q=' + q, '_blank');
+}
+
+/* Enter en buscador */
+document.getElementById('search-q').addEventListener('keydown', e => { if (e.key === 'Enter') searchCREG(); });
+</script>
+</body>
+</html>

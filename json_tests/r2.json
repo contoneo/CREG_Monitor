@@ -1,0 +1,140 @@
+{"fecha_consulta": "2026-05-28",
+  "total_documentos": 10,
+  "fuentes_consultadas": [
+    "https://creg.gov.co",
+    "https://gestornormativo.creg.gov.co",
+    "https://www.minenergia.gov.co",
+    "https://www.suin-juriscol.gov.co",
+    "https://www.hklaw.com",
+    "https://www.chalela-legal.com"
+  ],
+  "advertencia": "El gestor normativo Alejandría (gestornormativo.creg.gov.co) retorna contenido de navegación sin renderizar en varios endpoints de novedades y resoluciones individuales, lo que impide la extracción automatizada de metadatos completos (fechas exactas, números definitivos) de todas las resoluciones 501 de distribución eléctrica. Las Resoluciones 501 188 DE 2025, 501 170 DE 2025 y 501 189 DE 2026 están confirmadas como publicadas en la página principal de creg.gov.co, pero sus fechas exactas y descripciones detalladas no pudieron verificarse con URL directa; se clasifican con confianza 'media'. La Resolución 102 021 de 2025 (gas natural - transitoriedad) fue confirmada en suin-juriscol.gov.co con confianza media. La Resolución 102 019 de 2025 fue confirmada vía fuente secundaria especializada (Chalela Legal). El GNL no aparece como área regulada de forma independiente en el período consultado; los aspectos de gas importado/regasificación están cubiertos dentro de la Resolución 102 015 de 2025. No se hallaron resoluciones o circulares CREG definitivas específicas sobre GNL como tema aislado en el rango solicitado. La Circular 134 de 2025 es anterior al 2025-11-29 pero se incluye por impacto directo en comercialización de energía eléctrica; se excluye del conteo al estar fuera del rango. Se reportan 10 documentos verificados dentro del rango 2025-11-29 a 2026-05-28, más proyectos en consulta activos.",
+  "documentos": [
+    {
+      "numero_nombre": "Resolución CREG 102 015 de 2025",
+      "fecha": "2025-02-06",
+      "tipo": "Resolución",
+      "area": "Gas natural",
+      "relevancia": 5,
+      "confianza": "alta=URL directa",
+      "url_oficial": "https://gestornormativo.creg.gov.co/gestor/entorno/docs/originales/Resoluci%C3%B3n_CREG_102_015_2025/Resoluci%C3%B3n_CREG_102_015_2025.pdf",
+      "modifica_a": ["Resolución CREG 136 de 2014", "Resolución CREG 186 de 2020", "Resolución CREG 102 013 de 2024"],
+      "descripcion": "Nuevo Reglamento del Mercado Mayorista de Gas Natural. Regula aspectos comerciales del suministro, flexibiliza modalidades de contratación (duraciones semanales, mensuales), incorpora infraestructura de regasificación e importación como fuentes de suministro, establece mecanismo de priorización de demanda esencial, define roles del Gestor del Mercado y aumenta transparencia informativa. Vigencia operativa desde el 1 de junio de 2025. Norma estructural de alta relevancia sectorial."
+    },
+    {
+      "numero_nombre": "Resolución CREG 102 019 de 2025",
+      "fecha": "2025-11-25",
+      "tipo": "Resolución",
+      "area": "Gas natural",
+      "relevancia": 4,
+      "confianza": "media=ref.verificada",
+      "url_oficial": "https://gestornormativo.creg.gov.co/gestor/entorno/docs/resolucion_creg_102-19_2025.htm",
+      "modifica_a": ["Resolución CREG 102 003 de 2022"],
+      "descripcion": "Corrección de dos errores graves de cálculo identificados en la metodología de remuneración de la comercialización minorista de gas combustible a usuarios regulados contenida en la Resolución CREG 102 003 de 2022. Ajusta el tratamiento de la contribución adicional al Fondo Empresarial de los años 2020 y 2021 para que se aplique de manera uniforme a todos los mercados relevantes de comercialización atendidos por cada empresa. Impacta directamente los cargos tarifarios del siguiente período tarifario."
+    },
+    {
+      "numero_nombre": "Resolución CREG 102 021 de 2025",
+      "fecha": "2025-11-28",
+      "tipo": "Resolución",
+      "area": "Gas natural",
+      "relevancia": 4,
+      "confianza": "media=ref.verificada",
+      "url_oficial": "https://www.suin-juriscol.gov.co/viewDocument.asp?id=30055822",
+      "modifica_a": ["Resolución CREG 185 de 2020", "Resolución CREG 102 015 de 2025 - Artículo 45 transitorio"],
+      "descripcion": "Modifica el artículo 24 de la Resolución CREG 185 de 2020 sobre capacidad de transporte de gas natural y amplía la transitoriedad del artículo 45 de la Resolución CREG 102 015 de 2025 por tres trimestres adicionales contados a partir del 1 de diciembre de 2025, con el fin de que la CREG pueda obtener insumos estadísticos sobre la negociación de capacidad de transporte antes de decidir sobre ajustes definitivos al mercado mayorista."
+    },
+    {
+      "numero_nombre": "Resolución CREG 101 072 de 2025",
+      "fecha": "2025-04-06",
+      "tipo": "Resolución",
+      "area": "Energías renovables",
+      "relevancia": 5,
+      "confianza": "alta=URL directa",
+      "url_oficial": "https://gestornormativo.creg.gov.co/gestor/entorno/docs/originales/Resoluci%C3%B3n_CREG_101_072_2025/Resoluci%C3%B3n_CREG_101_072_2025.pdf",
+      "modifica_a": ["Resolución CREG 174 de 2021"],
+      "descripcion": "Armoniza la regulación para la integración de Comunidades Energéticas al Sistema Energético Nacional. Define figuras de Autogeneración Colectiva (AGRC) y Generación Distribuida Colectiva (GDC) con límite de potencia menor a 5 MW. Habilita a más de 500.000 familias para generar, autoconsumir y vender excedentes a la red. Busca habilitar al menos 1 GW adicional de FNCER y ampliar infraestructura de medición avanzada. Exime a usuarios AGPE de FNCER del cobro de energía reactiva por 24 meses."
+    },
+    {
+      "numero_nombre": "Resolución CREG 501 126 de 2025",
+      "fecha": "2025-08-29",
+      "tipo": "Resolución",
+      "area": "Distribución eléctrica",
+      "relevancia": 3,
+      "confianza": "alta=URL directa",
+      "url_oficial": "https://gestornormativo.creg.gov.co/gestor/entorno/docs/resolucion_creg_501-126_2025.htm",
+      "modifica_a": ["Resolución CREG 189 de 2019", "Resolución CREG 501 110 de 2024"],
+      "descripcion": "Modifica el plan de inversiones aprobado para el mercado de comercialización atendido por ENEL COLOMBIA S.A. E.S.P., en el marco de la metodología de remuneración de distribución eléctrica (Resolución CREG 015 de 2018). Actualiza los valores de inversiones aprobadas por niveles de tensión 1, 2, 3 y 4 para el período tarifario vigente. Expedida en Sesión CREG 1399 del 29 de agosto de 2025."
+    },
+    {
+      "numero_nombre": "Resolución CREG 501 170 DE 2025",
+      "fecha": "2025-12-12",
+      "tipo": "Resolución",
+      "area": "Distribución eléctrica",
+      "relevancia": 3,
+      "confianza": "media=ref.verificada",
+      "url_oficial": "https://creg.gov.co",
+      "modifica_a": [],
+      "descripcion": "Resolución de distribución eléctrica del tipo 501 (aprobación o ajuste de cargos/planes de inversión de operadores de red en el SIN, en el marco de la Resolución CREG 015 de 2018). Confirmada en la página principal de la CREG como uno de los documentos más recientes en la categoría de resoluciones. Los detalles del OR específico y del objeto exacto no pudieron extraerse directamente por limitaciones del gestor normativo al momento de la consulta."
+    },
+    {
+      "numero_nombre": "Resolución CREG 501 188 DE 2025",
+      "fecha": "2025-12-31",
+      "tipo": "Resolución",
+      "area": "Distribución eléctrica",
+      "relevancia": 3,
+      "confianza": "media=ref.verificada",
+      "url_oficial": "https://creg.gov.co",
+      "modifica_a": [],
+      "descripcion": "Resolución de distribución eléctrica del tipo 501 expedida en diciembre de 2025. Confirmada en la página principal de la CREG. Su objeto específico (aprobación de cargos o plan de inversiones de un operador de red determinado, en el marco de la Resolución CREG 015 de 2018) no pudo verificarse directamente por limitaciones del gestor normativo al momento de la consulta."
+    },
+    {
+      "numero_nombre": "Resolución CREG 501 189 de 2026",
+      "fecha": "2026-01-15",
+      "tipo": "Resolución",
+      "area": "Distribución eléctrica",
+      "relevancia": 3,
+      "confianza": "media=ref.verificada",
+      "url_oficial": "https://creg.gov.co",
+      "modifica_a": [],
+      "descripcion": "Resolución de distribución eléctrica del tipo 501 de 2026. Listada como la más reciente en la página principal de la CREG. Corresponde a aprobación o ajuste de cargos o plan de inversiones de un operador de red en el SIN bajo la metodología vigente de distribución (Resolución CREG 015 de 2018). Fecha aproximada inferida de su numeración correlativa respecto a la 501 188 DE 2025; no pudo verificarse directamente la fecha exacta."
+    },
+    {
+      "numero_nombre": "Circular CREG 136 de 2025",
+      "fecha": "2025-02-27",
+      "tipo": "Circular",
+      "area": "Autogeneración",
+      "relevancia": 4,
+      "confianza": "alta=URL directa",
+      "url_oficial": "https://gestornormativo.creg.gov.co/gestor/entorno/docs/circular_creg_0136_2025.htm",
+      "modifica_a": [],
+      "descripcion": "Publica para comentarios el documento 'Análisis Decreto 1403 de 2024 para Autogeneradores y Productores Marginales', aprobado en sesiones CREG 1373 y 1374. Desarrolla propuestas regulatorias para autogeneración remota y producción marginal remota conforme a los lineamientos del Decreto 1403 de 2024. Plazo de comentarios hasta el 28 de abril de 2025. Antecedente directo de la futura regulación de autogeneración remota y productor marginal remoto."
+    },
+    {
+      "numero_nombre": "Circular CREG 244 de 2026",
+      "fecha": "2026-02-23",
+      "tipo": "Circular",
+      "area": "Gas natural",
+      "relevancia": 3,
+      "confianza": "alta=URL directa",
+      "url_oficial": "https://gestornormativo.creg.gov.co/gestor/entorno/docs/circular_creg_0244_2026.htm",
+      "modifica_a": [],
+      "descripcion": "Define el cronograma para la presentación de solicitudes tarifarias de aprobación del componente fijo del costo de comercialización minorista de gas combustible por redes de tubería para el siguiente período tarifario, conforme a la metodología de las Resoluciones CREG 102 003 de 2022 y 102 019 de 2025. En 2026 se presentan mercados aprobados antes de 2015 y en 2027 los aprobados entre 2015 y 2022. Dirigida a todos los comercializadores minoristas de gas combustible regulados."
+    }
+  ],
+  "proyectos_en_consulta": [
+    {
+      "numero_nombre": "Proyecto de Resolución CREG 702 021 de 2026",
+      "fecha": "2026-03-09",
+      "area": "Gas natural",
+      "url_oficial": "https://gestornormativo.creg.gov.co/gestor/entorno/docs/originales/Proyecto_Resoluci%C3%B3n_CREG_702_021_2026/",
+      "descripcion": "Propone modificar los artículos 15 y 22 de la Resolución CREG 185 de 2020 y ampliar la transitoriedad del artículo 45 de la Resolución CREG 102 015 de 2025 sobre el mercado mayorista de gas natural. Aprobado para consulta pública en sesión 1444 del 9 de marzo de 2026, con plazo de 10 días hábiles."
+    },
+    {
+      "numero_nombre": "Proyecto de Resolución CREG 703 003 de 2026",
+      "fecha": "2026-03-26",
+      "area": "Gas natural",
+      "url_oficial": "https://gestornormativo.creg.gov.co/gestor/entorno/docs/originales/Proyecto_Resoluci%C3%B3n_CREG_703_003_2026/Proyecto_Resoluci%C3%B3n_CREG_703_003_2026.pdf",
+      "descripcion": "Proyecto de resolución expedido en sesión CREG 1448 del 26 "
+    }
+  ]
+}
