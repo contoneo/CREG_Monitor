@@ -170,10 +170,10 @@ function CREGMonitor() {
       {/* Tabs */}
       <div className="tabs">
         <button className={`tab${mainTab === 'dashboard' ? ' active' : ''}`} onClick={() => setMainTab('dashboard')}>
-          Publicaciones recientes
+          Publicaciones Recientes
         </button>
         <button className={`tab${mainTab === 'config' ? ' active' : ''}`} onClick={() => setMainTab('config')}>
-          ⚙️ Configurar
+          Configuración
         </button>
       </div>
 
@@ -183,7 +183,7 @@ function CREGMonitor() {
           <button className={`btn btn-primary${loading ? ' loading' : ''}`} id="btn-scan"
             disabled={!tipos.length || !areas.length}
             onClick={loading ? handleStop : handleSearch}>
-            {loading ? "⏹ Detener" : "⟳ Escanear ahora"}
+            {loading ? "⏹ Detener" : "⟳ Buscar ahora"}
           </button>
           {error && <div className="error-msg">{error}</div>}
         </div>
