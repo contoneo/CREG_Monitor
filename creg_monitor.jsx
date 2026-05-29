@@ -338,8 +338,8 @@ function CREGMonitor() {
       {/* ══ Configurar panel ══ */}
       <div id="tab-config" className={`section${mainTab === 'config' ? ' active' : ''}`}>
         <div className="card card-mb">
+          <h2 className="h2-panel">Configuración de Búsqueda</h2>
           <h2 className="h2-sm">Áreas de interés</h2>
-          <p className="card-subtitle">El agente alertará sobre resoluciones relacionadas con estos temas</p>
           <div className="topic-grid">
             {AREAS.map((a, i) => (
               <div key={a} className={`topic-chip${areas.includes(a) ? ' on' : ''}`} onClick={() => toggleArea(a)}>
@@ -347,9 +347,19 @@ function CREGMonitor() {
               </div>
             ))}
           </div>
+
+          <h2 className="h2-sm" style={{ marginTop: '1.5rem' }}>Tipo de documentos</h2>
+          <div className="topic-grid">
+            {TIPOS.map(t => (
+              <div key={t} className={`topic-chip${tipos.includes(t) ? ' on' : ''}`} onClick={() => toggleTipo(t)}>
+                {TIPOS_LABEL[t]}
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="card card-mb">
+          <h2 className="h2-panel">Alertas por Email</h2>
           <h2 className="h2-md">Relevancia mínima para alertas</h2>
           <div className="rel-row">
             <input type="range" min={1} max={5} value={relevanciaMin}
@@ -359,16 +369,6 @@ function CREGMonitor() {
           <p className="card-hint">Solo recibirás alertas con puntuación igual o superior</p>
         </div>
 
-        <div className="card card-mb">
-          <h2 className="h2-sm">Tipo de documentos</h2>
-          <div className="topic-grid">
-            {TIPOS.map(t => (
-              <div key={t} className={`topic-chip${tipos.includes(t) ? ' on' : ''}`} onClick={() => toggleTipo(t)}>
-                {TIPOS_LABEL[t]}
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
     </div>
   );
