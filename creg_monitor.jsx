@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client';
 import './creg_monitor.css';
 import { SEED_RESULT, mergeDedupe, mergeRango } from './data/seed.js';
 
+// ── Constants ──────────────────────────────────────────────────────────────
+
 const SYSTEM_PROMPT = `RESPONDE ÚNICAMENTE CON JSON PURO. Primer carácter: {. Último carácter: }. Cero texto antes o después.
 
 ROL: Monitor regulatorio CREG Colombia. Solo español. Nunca inventes números de documentos.
@@ -23,44 +25,56 @@ const TIPOS_LABEL = {
   "Acuerdo": "Acuerdos",
   "Concepto técnico": "Conceptos técnicos",
 };
+
 const AREAS = [
-  "Tarifas de energía","Gas natural","Energías renovables",
-  "Mercado mayorista","Distribución eléctrica","GNL",
-  "Subsidios","Redes inteligentes","Autogeneración","STN / Transporte"
+  "Tarifas de energía", "Gas natural", "Energías renovables",
+  "Mercado mayorista", "Distribución eléctrica", "GNL",
+  "Subsidios", "Redes inteligentes", "Autogeneración", "STN / Transporte",
 ];
+const AREA_EMOJI = ["⚡", "🔥", "☀️", "📈", "🔌", "💧", "🧾", "🧠", "🔋", "🏗️"];
+
 const REL_LABEL = { 5: "Muy alta", 4: "Alta", 3: "Media", 2: "Baja", 1: "Mínima" };
 
 const today = new Date().toISOString().split("T")[0];
-const oneMonthAgo = new Date(Date.now() - 30*24*60*60*1000).toISOString().split("T")[0];
+const oneMonthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+const DEFAULT_RANGO = [oneMonthAgo, today];
+
+// ── Sub-components ─────────────────────────────────────────────────────────
+
+function SortIcon({ field, sortField, sortDir }) {
+  return (
+    <span className={`sort-icon${sortField === field ? ' active' : ''}`}>
+      {sortField === field ? (sortDir === "asc" ? "↑" : "↓") : "⇅"}
+    </span>
+  );
+}
+
+// ── Main component ─────────────────────────────────────────────────────────
 
 function CREGMonitor() {
+
+  // State
   const [tipos, setTipos] = useState([...TIPOS]);
   const [areas, setAreas] = useState([...AREAS]);
-  const rango = [oneMonthAgo, today];
   const [relevanciaMin, setRelevanciaMin] = useState(3);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(SEED_RESULT);
   const [error, setError] = useState(null);
+  const [result, setResult] = useState(SEED_RESULT);
+  const [mainTab, setMainTab] = useState("dashboard");
   const [activeTab, setActiveTab] = useState("documentos");
   const [sortField, setSortField] = useState("relevancia");
   const [sortDir, setSortDir] = useState("desc");
   const [filterArea, setFilterArea] = useState("Todas");
   const [filterTipo, setFilterTipo] = useState("Todos");
-  const [mainTab, setMainTab] = useState("dashboard");
   const abortRef = useRef(null);
 
+  // Toggle handlers
   const toggleTipo = (t) =>
     setTipos(p => p.includes(t) ? p.filter(x => x !== t) : [...p, t]);
   const toggleArea = (a) =>
     setAreas(p => p.includes(a) ? p.filter(x => x !== a) : [...p, a]);
 
-  const buildJSON = () => ({
-    Tipos: tipos,
-    Rango: rango,
-    Areas: areas,
-    Relevancia_min: relevanciaMin,
-  });
-
+  // Search handlers
   const handleSearch = async () => {
     if (!tipos.length || !areas.length) {
       setError("Selecciona al menos un tipo y un área.");
@@ -69,7 +83,6 @@ function CREGMonitor() {
     setLoading(true);
     setError(null);
     abortRef.current = new AbortController();
-    let rawText = null;
 
     try {
       const resp = await fetch("https://api.anthropic.com/v1/messages", {
@@ -81,31 +94,27 @@ function CREGMonitor() {
           max_tokens: 8000,
           tools: [{ type: "web_search_20250305", name: "web_search" }],
           system: SYSTEM_PROMPT,
-          messages: [{ role: "user", content: JSON.stringify(buildJSON()) }],
+          messages: [{ role: "user", content: JSON.stringify({ Tipos: tipos, Rango: DEFAULT_RANGO, Areas: areas, Relevancia_min: relevanciaMin }) }],
         }),
       });
-      rawText = await resp.text();
-      const data = JSON.parse(rawText);
+      const data = JSON.parse(await resp.text());
       const textBlock = data.content?.find(b => b.type === "text");
       if (!textBlock) throw new Error("Sin bloque de texto en la respuesta");
-      const raw = textBlock.text;
-      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      const jsonMatch = textBlock.text.match(/\{[\s\S]*\}/);
       if (!jsonMatch) throw new Error("No se encontró JSON en la respuesta");
       const parsed = JSON.parse(jsonMatch[0]);
       setResult(prev => {
         const documentos = mergeDedupe(parsed.documentos ?? [], prev?.documentos ?? []);
         const proyectos_en_consulta = mergeDedupe(parsed.proyectos_en_consulta ?? [], prev?.proyectos_en_consulta ?? []);
         const fuentes_consultadas = [...new Set([...(parsed.fuentes_consultadas ?? []), ...(prev?.fuentes_consultadas ?? [])])];
-        const rango_de_fechas = mergeRango([prev, { rango_de_fechas: rango }]);
+        const rango_de_fechas = mergeRango([prev, { rango_de_fechas: DEFAULT_RANGO }]);
         return { ...parsed, documentos, proyectos_en_consulta, fuentes_consultadas, total_documentos: documentos.length, rango_de_fechas };
       });
       setActiveTab("documentos");
       setFilterArea("Todas");
       setFilterTipo("Todos");
     } catch (e) {
-      if (e.name !== "AbortError") {
-        setError("Error al procesar la respuesta: " + e.message);
-      }
+      if (e.name !== "AbortError") setError("Error al procesar la respuesta: " + e.message);
     } finally {
       setLoading(false);
     }
@@ -116,40 +125,34 @@ function CREGMonitor() {
     setLoading(false);
   };
 
-  const sortedDocs = () => {
-    if (!result?.documentos) return [];
-    return [...result.documentos]
-      .filter(d => filterArea === "Todas" || d.area === filterArea)
-      .filter(d => filterTipo === "Todos" || d.tipo === filterTipo)
-      .sort((a, b) => {
-        const va = a[sortField] ?? "";
-        const vb = b[sortField] ?? "";
-        const cmp = typeof va === "number" ? va - vb : String(va).localeCompare(String(vb));
-        return sortDir === "asc" ? cmp : -cmp;
-      });
-  };
-
+  // Sort / filter
   const handleSort = (field) => {
     if (sortField === field) setSortDir(d => d === "asc" ? "desc" : "asc");
     else { setSortField(field); setSortDir("desc"); }
   };
 
-  const SortIcon = ({ field }) => (
-    <span className={`sort-icon${sortField === field ? ' active' : ''}`}>
-      {sortField === field ? (sortDir === "asc" ? "↑" : "↓") : "⇅"}
-    </span>
-  );
-
-  const th = (label, field, w) => (
-    <th className="th-sort" style={{ width: w }} onClick={() => handleSort(field)}>
-      {label} <SortIcon field={field} />
-    </th>
-  );
+  const docs = result?.documentos
+    ? [...result.documentos]
+        .filter(d => filterArea === "Todas" || d.area === filterArea)
+        .filter(d => filterTipo === "Todos" || d.tipo === filterTipo)
+        .sort((a, b) => {
+          const va = a[sortField] ?? "";
+          const vb = b[sortField] ?? "";
+          const cmp = typeof va === "number" ? va - vb : String(va).localeCompare(String(vb));
+          return sortDir === "asc" ? cmp : -cmp;
+        })
+    : [];
 
   const uniqueAreas = result?.documentos ? [...new Set(result.documentos.map(d => d.area))] : [];
   const uniqueTipos = result?.documentos ? [...new Set(result.documentos.map(d => d.tipo))] : [];
 
-  const AREA_EMOJI = ["⚡","🔥","☀️","📈","🔌","💧","🧾","🧠","🔋","🏗️"];
+  const th = (label, field, w) => (
+    <th className="th-sort" style={{ width: w }} onClick={() => handleSort(field)}>
+      {label} <SortIcon field={field} sortField={sortField} sortDir={sortDir} />
+    </th>
+  );
+
+  // ── Render ───────────────────────────────────────────────────────────────
 
   return (
     <div className="shell">
@@ -190,7 +193,7 @@ function CREGMonitor() {
             Buscando en fuentes CREG en tiempo real...
           </div>
         )}
-  
+
         {result && (
           <div>
             {/* Período cubierto */}
@@ -204,7 +207,7 @@ function CREGMonitor() {
                   : "—"}
               </span>
             </div>
-  
+
             {result.info && <div className="info-box">{result.info}</div>}
 
             {/* Sub-tabs */}
@@ -218,7 +221,7 @@ function CREGMonitor() {
                   onClick={() => setActiveTab(key)}>{label}</button>
               ))}
             </div>
-  
+
             {activeTab === "documentos" && (
               <div>
                 <div className="filters-row">
@@ -229,13 +232,13 @@ function CREGMonitor() {
                     </select>
                   </label>
                   <label className="results-head">Tipo de documentos
-                   	<select className="filter-select" value={filterTipo} onChange={e => setFilterTipo(e.target.value)}>
-                    		<option>Todos</option>
-                    		{uniqueTipos.map(t => <option key={t}>{t}</option>)}
-                   	</select>
+                    <select className="filter-select" value={filterTipo} onChange={e => setFilterTipo(e.target.value)}>
+                      <option>Todos</option>
+                      {uniqueTipos.map(t => <option key={t}>{t}</option>)}
+                    </select>
                   </label>
                   <span className="results-head">
-                    {sortedDocs().length} resultado{sortedDocs().length !== 1 ? "s" : ""}
+                    {docs.length} resultado{docs.length !== 1 ? "s" : ""}
                   </span>
                 </div>
                 <div className="table-wrap">
@@ -252,7 +255,7 @@ function CREGMonitor() {
                       </tr>
                     </thead>
                     <tbody>
-                      {sortedDocs().map((doc, i) => (
+                      {docs.map((doc, i) => (
                         <tr key={i}>
                           <td className="td">
                             {doc.url_oficial && doc.url_oficial !== "https://" ? (
@@ -282,20 +285,20 @@ function CREGMonitor() {
                       ))}
                     </tbody>
                   </table>
-                  {sortedDocs().length === 0 && (
+                  {docs.length === 0 && (
                     <p className="no-results">No hay documentos con los filtros actuales.</p>
                   )}
                 </div>
               </div>
             )}
-  
+
             {activeTab === "proyectos" && (
               <div>
                 {result.proyectos_en_consulta?.length > 0 ? (
                   <table className="docs-table">
                     <thead>
                       <tr>
-                        {[["Proyecto","34%"],["Fecha","11%"],["Área","17%"],["Descripción","38%"]].map(([h, w]) => (
+                        {[["Proyecto", "34%"], ["Fecha", "11%"], ["Área", "17%"], ["Descripción", "38%"]].map(([h, w]) => (
                           <th key={h} className="th-plain" style={{ width: w }}>{h}</th>
                         ))}
                       </tr>
@@ -320,7 +323,7 @@ function CREGMonitor() {
                 )}
               </div>
             )}
-  
+
             {activeTab === "fuentes" && (
               <div className="sources-list">
                 {result.fuentes_consultadas?.map((url, i) => (
@@ -368,8 +371,8 @@ function CREGMonitor() {
           </div>
           <p className="card-hint">Solo recibirás alertas con puntuación igual o superior</p>
         </div>
-
       </div>
+
     </div>
   );
 }
