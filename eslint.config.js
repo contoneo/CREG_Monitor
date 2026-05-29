@@ -3,5 +3,5 @@ import globals from "globals";
 
 export default [
   js.configs.recommended,
-  { languageOptions: { globals: globals.browser } },
+  { languageOptions: { globals: globals.browser, parserOptions: { ecmaFeatures: { jsx: true } } } },
 ];
