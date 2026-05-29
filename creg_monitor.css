@@ -152,7 +152,9 @@ body {
 .topic-chip.on { border-color: var(--blue); background: var(--blue-bg); color: var(--blue-text); }
 
 /* ── Relevance slider (config) ── */
-.rel-row { display: flex; align-items: center; gap: 12px; width: 50%; }
+.sliders-grid { display: flex; gap: 2rem; }
+.slider-col { flex: 1; min-width: 0; }
+.rel-row { display: flex; align-items: center; gap: 12px; }
 .rel-val { font-size: 14px; font-weight: 500; min-width: 30px; }
 input[type=range] { width: 100%; accent-color: var(--blue); }
 

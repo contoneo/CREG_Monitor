@@ -57,6 +57,7 @@ function CREGMonitor() {
   const [tipos, setTipos] = useState([...TIPOS]);
   const [areas, setAreas] = useState([...AREAS]);
   const [relevanciaMin, setRelevanciaMin] = useState(3);
+  const [frecuencia, setFrecuencia] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(SEED_RESULT);
@@ -363,13 +364,25 @@ function CREGMonitor() {
 
         <div className="card card-mb">
           <h2 className="h2-panel">Alertas por Email</h2>
-          <h2 className="h2-md">Relevancia mínima para alertas</h2>
-          <div className="rel-row">
-            <input type="range" min={1} max={5} value={relevanciaMin}
-              onChange={e => setRelevanciaMin(Number(e.target.value))} />
-            <span className="rel-val">{relevanciaMin}/5</span>
+          <div className="sliders-grid">
+            <div className="slider-col">
+              <h2 className="h2-md">Relevancia mínima de Búsqueda/Alertas</h2>
+              <div className="rel-row">
+                <input type="range" min={1} max={5} value={relevanciaMin}
+                  onChange={e => setRelevanciaMin(Number(e.target.value))} />
+                <span className="rel-val">{relevanciaMin}/5</span>
+              </div>
+              <p className="card-hint">Solo recibirás alertas con puntuación igual o superior</p>
+            </div>
+            <div className="slider-col">
+              <h2 className="h2-md">Frecuencia de búsqueda automática por mes</h2>
+              <div className="rel-row">
+                <input type="range" min={1} max={5} value={frecuencia}
+                  onChange={e => setFrecuencia(Number(e.target.value))} />
+                <span className="rel-val">{frecuencia}/5</span>
+              </div>
+            </div>
           </div>
-          <p className="card-hint">Solo recibirás alertas con puntuación igual o superior</p>
         </div>
       </div>
 
