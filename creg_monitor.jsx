@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { createRoot } from 'react-dom/client';
 import './creg_monitor.css';
 import { SEED_RESULT, mergeDedupe, mergeRango } from './data/seed.js';
+import mockData from './data/mock_2026-04-01_30.json';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -91,19 +92,22 @@ function CREGMonitor() {
     abortRef.current = new AbortController();
 
     try {
-      const resp = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        signal: abortRef.current.signal,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 8000,
-          tools: [{ type: "web_search_20250305", name: "web_search" }],
-          system: SYSTEM_PROMPT,
-          messages: [{ role: "user", content: JSON.stringify({ Tipos: tipos, Rango: DEFAULT_RANGO, Areas: areas, Relevancia_min: relevanciaMin }) }],
-        }),
-      });
-      const data = JSON.parse(await resp.text());
+      // const resp = await fetch("https://api.anthropic.com/v1/messages", {
+      //   method: "POST",
+      //   signal: abortRef.current.signal,
+      //   headers: { "Content-Type": "application/json" },
+      //   body: JSON.stringify({
+      //     model: "claude-sonnet-4-20250514",
+      //     max_tokens: 8000,
+      //     tools: [{ type: "web_search_20250305", name: "web_search" }],
+      //     system: SYSTEM_PROMPT,
+      //     messages: [{ role: "user", content: JSON.stringify({ Tipos: tipos, Rango: DEFAULT_RANGO, Areas: areas, Relevancia_min: relevanciaMin }) }],
+      //   }),
+      // });
+      // const data = JSON.parse(await resp.text());
+      const test = JSON.stringify({ Tipos: tipos, Rango: DEFAULT_RANGO, Areas: areas, Relevancia_min: relevanciaMin });
+      console.log("test:", test);
+      const data = mockData;
       const textBlock = data.content?.find(b => b.type === "text");
       if (!textBlock) throw new Error("Sin bloque de texto en la respuesta");
       const jsonMatch = textBlock.text.match(/\{[\s\S]*\}/);
@@ -113,7 +117,7 @@ function CREGMonitor() {
         const documentos = mergeDedupe(parsed.documentos ?? [], prev?.documentos ?? []);
         const proyectos_en_consulta = mergeDedupe(parsed.proyectos_en_consulta ?? [], prev?.proyectos_en_consulta ?? []);
         const fuentes_consultadas = [...new Set([...(parsed.fuentes_consultadas ?? []), ...(prev?.fuentes_consultadas ?? [])])];
-        const rango_de_fechas = mergeRango([prev, { rango_de_fechas: DEFAULT_RANGO }]);
+        const rango_de_fechas = mergeRango([prev, { rango_de_fechas: parsed.rango_de_fechas ?? DEFAULT_RANGO }]);
         return { ...parsed, documentos, proyectos_en_consulta, fuentes_consultadas, total_documentos: documentos.length, rango_de_fechas };
       });
       setActiveTab("documentos");

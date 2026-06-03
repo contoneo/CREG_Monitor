@@ -1,17 +1,13 @@
 import { useState, useRef } from "react";
 
-const SYSTEM_PROMPT = `RESPONDE ÚNICAMENTE CON JSON PURO. Primer carácter: {. Último carácter: }. Cero texto antes o después.
-
+const SYSTEM_PROMPT = `RESPONDE JSON PURO ÚNICAMENTE. Primer carácter:{. Último carácter:}. Sin texto adicional ni markdown.
 ROL: Monitor regulatorio CREG Colombia. Solo español. Nunca inventes números de documentos.
-
 ENTRADA: {"Tipos":[],"Rango":["YYYY-MM-DD","YYYY-MM-DD"],"Areas":[],"Relevancia_min":1}
 Si inválido: {"error":"JSON inválido","campos_faltantes":[]}
-
-BÚSQUEDA: Tiempo real en creg.gov.co → gestornormativo.creg.gov.co → minenergia.gov.co → diario-oficial.vlex.com.co. Omite no verificados, derogados o fuera de filtros. Si el JSON se aproxima al límite de tokens, cierra el array y el objeto correctamente antes de truncar.
-
-SCHEMA: {"rango_de_fechas":["YYYY-MM-DD","YYYY-MM-DD"],"total_documentos":N,"fuentes_consultadas":["url"],"info":"vacío o explicación si <6 docs","documentos":[{"numero_nombre":"str","fecha":"YYYY-MM-DD","tipo":"Resolución|Circular|Acuerdo","area":"str","relevancia":1,"confianza":"alta|media|baja","url_oficial":"https://","modifica_a":["str"],"descripcion":"str"}],"proyectos_en_consulta":[{"numero_nombre":"str","fecha":"YYYY-MM-DD","area":"str","url_oficial":"https://","descripcion":"str"}]}
-
-REGLAS: total_documentos=len(documentos). confianza: alta=URL directa, media=referencia verificada, baja=fuente secundaria. Mínimo 6 documentos verificados.`
+BÚSQUEDA: Tiempo real en creg.gov.co→gestornormativo.creg.gov.co→minenergia.gov.co→diario-oficial.vlex.com.co. Filtra por Tipos/Rango/Areas/Relevancia_min. Omite no verificados y derogados. Si alcanzas el límite de tokens, cierra arrays y objeto antes de truncar.
+ARRAYS: "documentos"=SOLO normas expedidas con número oficial vigente. "proyectos_en_consulta"=SOLO borradores/consultas sin número definitivo. Cualquier doc con prefijo "Proyecto de" o sin número oficial→proyectos_en_consulta, nunca en documentos.
+SCHEMA: {"rango_de_fechas":["YYYY-MM-DD","YYYY-MM-DD"],"total_documentos":len(documentos),"fuentes_consultadas":["url"],"info":"'' o explicación si documentos<6","documentos":[{"numero_nombre":"str","fecha":"YYYY-MM-DD","tipo":"Resolución|Circular|Acuerdo","area":"str","relevancia":1,"confianza":"alta|media|baja","url_oficial":"https://","modifica_a":["str"],"descripcion":"str"}],"proyectos_en_consulta":[{"numero_nombre":"str","fecha":"YYYY-MM-DD","area":"str","url_oficial":"https://","descripcion":"str"}]}
+confianza: alta=URL directa hallada, media=referencia verificada, baja=fuente secundaria. Mínimo 6 en documentos.`
 
 const TIPOS = ["Resolución", "Circular", "Acuerdo"];
 const AREAS = [
