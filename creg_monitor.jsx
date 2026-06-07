@@ -2,22 +2,18 @@ import { useState, useRef, useEffect } from "react";
 import { createRoot } from 'react-dom/client';
 import './creg_monitor.css';
 import { SEED_RESULT, mergeDedupe, mergeRango } from './data/seed.js';
-import mockData from './data/mock_2026-04-01_30.json';
+import mockData from './data/mock_2025-12-01_2026-06-04.json';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `RESPONDE ÚNICAMENTE CON JSON PURO. Primer carácter: {. Último carácter: }. Cero texto antes o después.
-
+const SYSTEM_PROMPT = `RESPONDE ÚNICAMENTE CON JSON PURO. Primer carácter: {. Último carácter: }. Sin texto antes o después del objeto JSON.
 ROL: Monitor regulatorio CREG Colombia. Solo español. Nunca inventes números de documentos.
-
 ENTRADA: {"Tipos":[],"Rango":["YYYY-MM-DD","YYYY-MM-DD"],"Areas":[],"Relevancia_min":1}
 Si inválido: {"error":"JSON inválido","campos_faltantes":[]}
-
 BÚSQUEDA: Tiempo real en creg.gov.co → gestornormativo.creg.gov.co → minenergia.gov.co → diario-oficial.vlex.com.co. Omite no verificados, derogados o fuera de filtros. Si el JSON se aproxima al límite de tokens, cierra el array y el objeto correctamente antes de truncar.
-
-SCHEMA: {"fecha_consulta":"YYYY-MM-DD","total_documentos":N,"fuentes_consultadas":["url"],"info":"vacío o explicación si <6 docs","documentos":[{"numero_nombre":"str","fecha":"YYYY-MM-DD","tipo":"Resolución|Circular|Acuerdo","area":"str","relevancia":1,"confianza":"alta|media|baja","url_oficial":"https://","modifica_a":["str"],"descripcion":"str"}],"proyectos_en_consulta":[{"numero_nombre":"str","fecha":"YYYY-MM-DD","area":"str","url_oficial":"https://","descripcion":"str"}]}
-
-REGLAS: total_documentos=len(documentos). confianza: alta=URL directa, media=referencia verificada, baja=fuente secundaria. Mínimo 6 documentos verificados.`
+Si no se encuentran documentos, devuelve: {"rango_de_fechas":["fecha_ini","fecha_fin"],"total_documentos":0,"fuentes_consultadas":[],"info":"","documentos":[],"proyectos_en_consulta":[]}
+SCHEMA: {"rango_de_fechas":["YYYY-MM-DD","YYYY-MM-DD"],"total_documentos":N,"fuentes_consultadas":["url"],"info":"corta descripción de la consulta","documentos":[{"numero_nombre":"str","fecha":"YYYY-MM-DD","tipo":"Resolución|Circular|Acuerdo","area":"str","relevancia":1,"confianza":"alta|media|baja","url_oficial":"https://","modifica_a":["str"],"descripcion":"str"}],"proyectos_en_consulta":[{"numero_nombre":"str","fecha":"YYYY-MM-DD","area":"str","url_oficial":"https://","descripcion":"str"}]}
+REGLAS: total_documentos=len(documentos). confianza: alta=URL directa, media=referencia verificada, baja=fuente secundaria.`
 
 const TIPOS = ["Resolución", "Circular", "Acuerdo", "Concepto técnico"];
 const TIPOS_LABEL = {
