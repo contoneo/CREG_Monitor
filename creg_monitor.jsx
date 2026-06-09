@@ -46,6 +46,12 @@ function SortIcon({ field, sortField, sortDir }) {
   );
 }
 
+// ── Config persistence ─────────────────────────────────────────────────────
+
+function save_config(config) {
+  console.log("save_config", config);
+}
+
 // ── Main component ─────────────────────────────────────────────────────────
 
 function CREGMonitor() {
@@ -55,6 +61,8 @@ function CREGMonitor() {
   const [areas, setAreas] = useState([...AREAS]);
   const [relevanciaMin, setRelevanciaMin] = useState(3);
   const [frecuencia, setFrecuencia] = useState(1);
+  const [alertasEnabled, setAlertasEnabled] = useState(false);
+  const [emailRecipient, setEmailRecipient] = useState("");
   const [darkMode, setDarkMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -70,6 +78,12 @@ function CREGMonitor() {
   useEffect(() => {
     document.body.classList.toggle('dark', darkMode);
   }, [darkMode]);
+
+  const configInitialized = useRef(false);
+  useEffect(() => {
+    if (!configInitialized.current) { configInitialized.current = true; return; }
+    save_config({ tipos, areas, relevanciaMin, frecuencia, alertasEnabled, emailRecipient });
+  }, [tipos, areas, relevanciaMin, frecuencia, alertasEnabled, emailRecipient]);
 
   // Toggle handlers
   const toggleTipo = (t) =>
@@ -375,13 +389,25 @@ function CREGMonitor() {
           </div>
         </div>
 
-        <div className="card card-mb">
-          <h2 className="h2-panel">Alertas por Email</h2>
-          <div className="sliders-grid">
+        <div id="alarm_panel" className="card card-mb">
+          <div className="panel-header-row">
+            <button
+              id="enable_alarm"
+              className={`panel-toggle${alertasEnabled ? ' on' : ''}`}
+              onClick={() => setAlertasEnabled(v => !v)}
+              aria-label="Habilitar alertas por email"
+              aria-pressed={alertasEnabled}
+            >
+              <span className="panel-toggle-thumb" />
+            </button>
+            <h2 className="h2-panel">Alertas por Email</h2>
+          </div>
+          <div className={`sliders-grid${!alertasEnabled ? ' panel-disabled' : ''}`}>
             <div className="slider-col">
               <h2 className="h2-md">Relevancia mínima de Búsqueda/Alertas</h2>
               <div className="rel-row">
                 <input type="range" min={1} max={5} value={relevanciaMin}
+                  disabled={!alertasEnabled}
                   onChange={e => setRelevanciaMin(Number(e.target.value))} />
                 <span className="rel-val">{relevanciaMin}/5</span>
               </div>
@@ -391,10 +417,28 @@ function CREGMonitor() {
               <h2 className="h2-md">Frecuencia de búsqueda automática por mes</h2>
               <div className="rel-row">
                 <input type="range" min={1} max={5} value={frecuencia}
+                  disabled={!alertasEnabled}
                   onChange={e => setFrecuencia(Number(e.target.value))} />
                 <span className="rel-val">{frecuencia}/5</span>
               </div>
             </div>
+          </div>
+          <div className={`email-recipient-row${!alertasEnabled ? ' panel-disabled' : ''}`}>
+            <label className="email-recipient-label" htmlFor="email_recipient">
+              Destinatario de alertas
+            </label>
+            <input
+              id="email_recipient"
+              type="email"
+              className="email-recipient-input"
+              value={emailRecipient}
+              disabled={!alertasEnabled}
+              placeholder="nombre@dominio.com"
+              autoComplete="email"
+              inputMode="email"
+              pattern="[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}"
+              onChange={e => setEmailRecipient(e.target.value)}
+            />
           </div>
         </div>
       </div>

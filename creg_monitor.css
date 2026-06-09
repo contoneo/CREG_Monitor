@@ -386,6 +386,85 @@ body.dark input[type=range]::-moz-range-track {
   height: 4px;
 }
 
+/* ── Panel header row (toggle + title) ── */
+.panel-header-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.panel-header-row .h2-panel { margin-bottom: 0; }
+
+/* ── Panel enable toggle switch ── */
+.panel-toggle {
+  position: relative;
+  width: 38px; height: 22px;
+  border-radius: 99px;
+  border: 1px solid var(--border-md);
+  background: var(--surface2);
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: background .2s, border-color .2s;
+}
+.panel-toggle.on { background: var(--blue); border-color: var(--blue); }
+.panel-toggle-thumb {
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--text3);
+  transition: transform .2s, background .2s;
+  display: block;
+}
+.panel-toggle.on .panel-toggle-thumb {
+  transform: translateX(16px);
+  background: #fff;
+}
+
+/* ── Disabled panel section ── */
+.panel-disabled {
+  opacity: 0.4;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ── Email recipient field ── */
+.email-recipient-row {
+  margin-top: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.email-recipient-label {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text);
+  cursor: default;
+}
+.email-recipient-input {
+  width: 100%;
+  padding: 9px 12px;
+  font-size: 14px;
+  border: 0.5px solid var(--border-md);
+  border-radius: var(--radius);
+  background: var(--surface2);
+  color: var(--text);
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+.email-recipient-input:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(24,95,165,.12);
+}
+.email-recipient-input:invalid:not(:placeholder-shown) {
+  border-color: var(--red-text);
+  box-shadow: 0 0 0 3px rgba(163,45,45,.10);
+}
+.email-recipient-input:disabled {
+  cursor: not-allowed;
+}
+
 /* ── Dark mode toggle switch ── */
 .dark-mode-switcher {
   margin-left: auto;
