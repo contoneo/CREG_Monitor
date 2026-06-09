@@ -11,8 +11,8 @@ ROL: Monitor regulatorio CREG Colombia. Solo español. Nunca inventes números d
 ENTRADA: {"Tipos":[],"Rango":["YYYY-MM-DD","YYYY-MM-DD"],"Areas":[],"Relevancia_min":1}
 Si inválido: {"error":"JSON inválido","campos_faltantes":[]}
 BÚSQUEDA: Tiempo real en creg.gov.co → gestornormativo.creg.gov.co → minenergia.gov.co → diario-oficial.vlex.com.co. Omite no verificados, derogados o fuera de filtros. Si el JSON se aproxima al límite de tokens, cierra el array y el objeto correctamente antes de truncar.
-Si no se encuentran documentos, devuelve: {"rango_de_fechas":["fecha_ini","fecha_fin"],"total_documentos":0,"fuentes_consultadas":[],"info":"","documentos":[],"proyectos_en_consulta":[]}
-SCHEMA: {"rango_de_fechas":["YYYY-MM-DD","YYYY-MM-DD"],"total_documentos":N,"fuentes_consultadas":["url"],"info":"corta descripción de la consulta","documentos":[{"numero_nombre":"str","fecha":"YYYY-MM-DD","tipo":"Resolución|Circular|Acuerdo","area":"str","relevancia":1,"confianza":"alta|media|baja","url_oficial":"https://","modifica_a":["str"],"descripcion":"str"}],"proyectos_en_consulta":[{"numero_nombre":"str","fecha":"YYYY-MM-DD","area":"str","url_oficial":"https://","descripcion":"str"}]}
+Si no se encuentran documentos, devuelve: {"rango_de_fechas":["fecha_ini","fecha_fin"],"total_documentos":0,"fuentes_consultadas":[],"documentos":[],"proyectos_en_consulta":[]}
+SCHEMA: {"rango_de_fechas":["YYYY-MM-DD","YYYY-MM-DD"],"total_documentos":N,"fuentes_consultadas":["url"],"documentos":[{"numero_nombre":"str","fecha":"YYYY-MM-DD","tipo":"Resolución|Circular|Acuerdo","area":"str","relevancia":1,"confianza":"alta|media|baja","url_oficial":"https://","modifica_a":["str"],"descripcion":"str"}],"proyectos_en_consulta":[{"numero_nombre":"str","fecha":"YYYY-MM-DD","area":"str","url_oficial":"https://","descripcion":"str"}]}
 REGLAS: total_documentos=len(documentos). confianza: alta=URL directa, media=referencia verificada, baja=fuente secundaria.`
 
 const TIPOS = ["Resolución", "Circular", "Acuerdo", "Concepto técnico"];
@@ -223,8 +223,6 @@ function CREGMonitor() {
                   : "—"}
               </span>
             </div>
-
-            {result.info && <div className="info-box">{result.info}</div>}
 
             {/* Sub-tabs */}
             <div className="result-tabs">

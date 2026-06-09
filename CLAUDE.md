@@ -59,7 +59,6 @@ Sources searched (in order): `creg.gov.co` → `gestornormativo.creg.gov.co` →
   "fecha_consulta": "YYYY-MM-DD",
   "total_documentos": N,
   "fuentes_consultadas": ["url"],
-  "info": "empty string, or explanation when fewer than 6 docs found",
   "documentos": [{
     "numero_nombre": "str",
     "fecha": "YYYY-MM-DD",
