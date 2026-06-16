@@ -1,0 +1,12 @@
+# Copy to terraform.tfvars and fill in values.
+# NEVER commit terraform.tfvars to source control.
+# Pass secrets via env vars instead:
+#   export TF_VAR_claude_api_key="sk-ant-..."
+#   export TF_VAR_sender_email="alerts@yourdomain.com"
+
+aws_region          = "eu-central-1"
+project_name        = "alert-app"
+environment         = "dev"
+sender_email        = "alerts@yourdomain.com"
+sender_domain       = "yourdomain.com"
+schedule_expression = "rate(1 hour)"

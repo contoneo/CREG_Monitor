@@ -1,0 +1,11 @@
+{
+  "name": "lambda-get-master-json",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Returns the master results record from DynamoDB",
+  "main": "index.mjs",
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.0.0",
+    "@aws-sdk/util-dynamodb": "^3.0.0"
+  }
+}

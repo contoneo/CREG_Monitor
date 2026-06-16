@@ -1,0 +1,13 @@
+{
+  "name": "lambda-run-alert",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Orchestrates Claude call, master record merge, new item detection and email notification",
+  "main": "index.mjs",
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.0.0",
+    "@aws-sdk/client-ses": "^3.0.0",
+    "@aws-sdk/client-ssm": "^3.0.0",
+    "@aws-sdk/util-dynamodb": "^3.0.0"
+  }
+}

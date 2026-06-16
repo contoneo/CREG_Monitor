@@ -1,0 +1,17 @@
+# Terraform
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/.terraform.lock.hcl
+terraform/terraform.tfvars
+terraform/modules/*/builds/
+
+# Lambda dependencies
+lambdas/*/node_modules/
+
+# React
+.env
+.env.local
+.env.production
+build/
+dist/

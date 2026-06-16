@@ -1,5 +1,1 @@
-dist/
-grounding_data/
-node_modules/
-.env.production
-data/
+.DS_Store
