@@ -14,6 +14,9 @@ const MASTER_FILE = new URL("master.json", DATA_DIR);
 const MASTER_INIT_FILE = new URL("master_init.json", DATA_DIR);
 const MOCK_FILE = new URL("mock_2025-12-01_2026-06-04.json", DATA_DIR);
 
+// Mirror of the email `pattern` on the recipient input in creg_monitor.jsx.
+const EMAIL_RE = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
 const EMPTY_MASTER = {
   rango_de_fechas: [],
   total_documentos: 0,
@@ -84,10 +87,13 @@ function parseClaudeResponse(raw) {
 /**
  * Trigger an alert run.
  * Reads the mock Claude response, merges it into the master_init baseline,
- * writes the result to master.json, and reports whether new items were found
+ * writes the result to master.json, and reports the new items found
  * (and, server-side, sends an email when configured).
  *
- * @returns {Promise<{ hasNew: boolean }>}
+ * @returns {Promise<{
+ *   newItems: { documentos: object[], proyectos_en_consulta: object[] },
+ *   emailSent: boolean
+ * }>}
  */
 export async function runAlert() {
   const raw = await readJson(MOCK_FILE);
@@ -124,8 +130,10 @@ export async function runAlert() {
 
   const hasNew = newItems.documentos.length + newItems.proyectos_en_consulta.length > 0;
   const config = await getConfig();
-  // Real email sending would go here; gated on config + new items.
-  const emailSent = hasNew && Boolean(config?.enabled && config?.recipientEmail);
+  // Real email sending would go here; gated on alerts enabled, new items, and a
+  // valid recipient address (same rule as the production run-alert Lambda).
+  const emailSent =
+    hasNew && Boolean(config?.enabled) && EMAIL_RE.test(config?.recipientEmail ?? "");
   if (hasNew) {
     console.log(
       `[runAlert] ${newItems.documentos.length} new docs, ` +
@@ -135,7 +143,7 @@ export async function runAlert() {
     console.log("[runAlert] no new items");
   }
 
-  return { hasNew };
+  return { newItems, emailSent };
 }
 
 /**

@@ -105,7 +105,11 @@ function CREGMonitor() {
   }, []);
   useEffect(() => {
     if (!configInitialized.current) return;
-    persistConfig({ tipos, areas, relevanciaMin, frecuencia, alertasEnabled, emailRecipient });
+    // Debounce: collapse rapid edits (slider drags, typing) into one save.
+    const id = setTimeout(() => {
+      persistConfig({ tipos, areas, relevanciaMin, frecuencia, alertasEnabled, emailRecipient });
+    }, 600);
+    return () => clearTimeout(id);
   }, [tipos, areas, relevanciaMin, frecuencia, alertasEnabled, emailRecipient]);
 
   // Toggle handlers
@@ -126,14 +130,17 @@ function CREGMonitor() {
     abortRef.current = new AbortController();
 
     try {
-      const { hasNew } = await runAlert(abortRef.current.signal);
+      const { newItems, emailSent } = await runAlert(abortRef.current.signal);
+      const hasNew =
+        (newItems?.documentos?.length ?? 0) + (newItems?.proyectos_en_consulta?.length ?? 0) > 0;
       if (hasNew) {
         const master = await getMasterJson();
         setResult(master);
         setActiveTab("documentos");
         setFilterArea("Todas");
         setFilterTipo("Todos");
-        setNotice(`Registro actualizado: ${master.total_documentos} documentos.`);
+        const emailMsg = emailSent ? " Alerta enviada por email." : "";
+        setNotice(`Registro actualizado: ${master.total_documentos} documentos.${emailMsg}`);
       } else {
         setNotice("No hay nuevos documentos desde la última consulta.");
       }
