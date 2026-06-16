@@ -120,6 +120,7 @@ export async function runAlert() {
     lastUpdated: new Date().toISOString(),
   };
   await writeJson(MASTER_FILE, updated);
+  console.log(`[master.json] updated — ${documentos.length} docs, ${proyectos_en_consulta.length} proyectos`);
 
   const hasNew = newItems.documentos.length + newItems.proyectos_en_consulta.length > 0;
   const config = await getConfig();
@@ -149,7 +150,14 @@ export async function runAlert() {
  * @param {boolean}  config.enabled
  */
 export async function saveConfig(config) {
+  const prev = await readJson(CONFIG_FILE, {});
   const record = { ...config, updatedAt: new Date().toISOString() };
+  const changed = Object.keys(config).filter(k => JSON.stringify(config[k]) !== JSON.stringify(prev[k]));
+  if (changed.length) {
+    for (const k of changed) {
+      console.log(`[config] ${k}: ${JSON.stringify(prev[k])} → ${JSON.stringify(config[k])}`);
+    }
+  }
   await writeJson(CONFIG_FILE, record);
   return record;
 }

@@ -1,14 +1,15 @@
 {
   "Tipos": [
-    "Circular",
-    "Resolución"
+    "Resolución",
+    "Circular"
   ],
   "Areas": [
-    "Gas natural"
+    "Gas natural",
+    "Tarifas de energía"
   ],
   "Relevancia_min": 2,
   "calls_per_month": 4,
-  "enabled": true,
+  "enabled": false,
   "recipientEmail": "contoneo@gmail.com",
-  "updatedAt": "2026-06-16T10:45:43.461Z"
+  "updatedAt": "2026-06-16T12:34:39.893Z"
 }
