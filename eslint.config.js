@@ -3,5 +3,14 @@ import globals from "globals";
 
 export default [
   js.configs.recommended,
-  { languageOptions: { globals: globals.browser, parserOptions: { ecmaFeatures: { jsx: true } } } },
+  // Browser code (React frontend)
+  {
+    files: ["**/*.jsx", "api.client.js"],
+    languageOptions: { globals: globals.browser, parserOptions: { ecmaFeatures: { jsx: true } } },
+  },
+  // Node code (backend + build/data scripts)
+  {
+    files: ["api.js", "*.config.js", "data/**/*.js"],
+    languageOptions: { globals: globals.node },
+  },
 ];

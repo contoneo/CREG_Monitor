@@ -202,6 +202,15 @@ select {
   margin-bottom: 8px;
 }
 
+.info-msg {
+  background: rgba(45,110,163,.12);
+  border: 0.5px solid rgba(45,110,163,.25);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 13px; color: #2d6ea3;
+  margin-bottom: 8px;
+}
+
 /* ── Debug ── */
 .debug-block { margin-bottom: 14px; }
 .debug-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }

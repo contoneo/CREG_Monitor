@@ -1,11 +1,15 @@
 import { useState, useRef, useEffect } from "react";
 import { createRoot } from 'react-dom/client';
 import './creg_monitor.css';
-import { SEED_RESULT, mergeDedupe, mergeRango } from './data/seed.js';
-import mockData from './data/mock_2025-12-01_2026-06-04.json';
+import { saveConfig, getConfig, runAlert, getMasterJson } from './api.client';
+import master_initData from './data/master_init.json';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
+// Kept for reference: the prompt for the live Anthropic call. The frontend no
+// longer calls the API directly — the backend (api.js) owns the search and the
+// frontend triggers it via runAlert(). Move this to the backend when wiring the
+// real call.
 const SYSTEM_PROMPT = `RESPONDE ÚNICAMENTE CON JSON PURO. Primer carácter: {. Último carácter: }. Sin texto antes o después del objeto JSON.
 ROL: Monitor regulatorio CREG Colombia. Solo español. Nunca inventes números de documentos.
 ENTRADA: {"Tipos":[],"Rango":["YYYY-MM-DD","YYYY-MM-DD"],"Areas":[],"Relevancia_min":1}
@@ -32,10 +36,6 @@ const AREA_EMOJI = ["⚡", "🔥", "☀️", "📈", "🔌", "💧", "🧾", "�
 
 const REL_LABEL = { 5: "Muy alta", 4: "Alta", 3: "Media", 2: "Baja", 1: "Mínima" };
 
-const today = new Date().toISOString().split("T")[0];
-const oneMonthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-const DEFAULT_RANGO = [oneMonthAgo, today];
-
 // ── Sub-components ─────────────────────────────────────────────────────────
 
 function SortIcon({ field, sortField, sortDir }) {
@@ -48,8 +48,16 @@ function SortIcon({ field, sortField, sortDir }) {
 
 // ── Config persistence ─────────────────────────────────────────────────────
 
-function save_config(config) {
-  console.log("save_config", config);
+// Maps the component's camelCase state to the backend's config schema.
+function persistConfig({ tipos, areas, relevanciaMin, frecuencia, alertasEnabled, emailRecipient }) {
+  saveConfig({
+    Tipos: tipos,
+    Areas: areas,
+    Relevancia_min: relevanciaMin,
+    calls_per_month: frecuencia,
+    enabled: alertasEnabled,
+    recipientEmail: emailRecipient,
+  }).catch(() => {});
 }
 
 // ── Main component ─────────────────────────────────────────────────────────
@@ -66,7 +74,8 @@ function CREGMonitor() {
   const [darkMode, setDarkMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [result, setResult] = useState(SEED_RESULT);
+  const [notice, setNotice] = useState(null);
+  const [result, setResult] = useState(master_initData);
   const [mainTab, setMainTab] = useState("dashboard");
   const [activeTab, setActiveTab] = useState("documentos");
   const [sortField, setSortField] = useState("relevancia");
@@ -81,8 +90,22 @@ function CREGMonitor() {
 
   const configInitialized = useRef(false);
   useEffect(() => {
-    if (!configInitialized.current) { configInitialized.current = true; return; }
-    save_config({ tipos, areas, relevanciaMin, frecuencia, alertasEnabled, emailRecipient });
+    getConfig()
+      .then(cfg => {
+        if (cfg) {
+          setTipos(cfg.Tipos ?? [...TIPOS]);
+          setAreas(cfg.Areas ?? [...AREAS]);
+          setRelevanciaMin(cfg.Relevancia_min ?? 3);
+          setFrecuencia(cfg.calls_per_month ?? 1);
+          setAlertasEnabled(cfg.enabled ?? false);
+          setEmailRecipient(cfg.recipientEmail ?? "");
+        }
+      })
+      .finally(() => { configInitialized.current = true; });
+  }, []);
+  useEffect(() => {
+    if (!configInitialized.current) return;
+    persistConfig({ tipos, areas, relevanciaMin, frecuencia, alertasEnabled, emailRecipient });
   }, [tipos, areas, relevanciaMin, frecuencia, alertasEnabled, emailRecipient]);
 
   // Toggle handlers
@@ -99,42 +122,24 @@ function CREGMonitor() {
     }
     setLoading(true);
     setError(null);
+    setNotice(null);
     abortRef.current = new AbortController();
 
     try {
-      // const resp = await fetch("https://api.anthropic.com/v1/messages", {
-      //   method: "POST",
-      //   signal: abortRef.current.signal,
-      //   headers: { "Content-Type": "application/json" },
-      //   body: JSON.stringify({
-      //     model: "claude-sonnet-4-20250514",
-      //     max_tokens: 8000,
-      //     tools: [{ type: "web_search_20250305", name: "web_search" }],
-      //     system: SYSTEM_PROMPT,
-      //     messages: [{ role: "user", content: JSON.stringify({ Tipos: tipos, Rango: DEFAULT_RANGO, Areas: areas, Relevancia_min: relevanciaMin }) }],
-      //   }),
-      // });
-      // const data = JSON.parse(await resp.text());
-      const test = JSON.stringify({ Tipos: tipos, Rango: DEFAULT_RANGO, Areas: areas, Relevancia_min: relevanciaMin });
-      console.log("test:", test);
-      const data = mockData;
-      const textBlock = data.content?.find(b => b.type === "text");
-      if (!textBlock) throw new Error("Sin bloque de texto en la respuesta");
-      const jsonMatch = textBlock.text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error("No se encontró JSON en la respuesta");
-      const parsed = JSON.parse(jsonMatch[0]);
-      setResult(prev => {
-        const documentos = mergeDedupe(parsed.documentos ?? [], prev?.documentos ?? []);
-        const proyectos_en_consulta = mergeDedupe(parsed.proyectos_en_consulta ?? [], prev?.proyectos_en_consulta ?? []);
-        const fuentes_consultadas = [...new Set([...(parsed.fuentes_consultadas ?? []), ...(prev?.fuentes_consultadas ?? [])])];
-        const rango_de_fechas = mergeRango([prev, { rango_de_fechas: parsed.rango_de_fechas ?? DEFAULT_RANGO }]);
-        return { ...parsed, documentos, proyectos_en_consulta, fuentes_consultadas, total_documentos: documentos.length, rango_de_fechas };
-      });
-      setActiveTab("documentos");
-      setFilterArea("Todas");
-      setFilterTipo("Todos");
+      const { hasNew } = await runAlert(abortRef.current.signal);
+      if (hasNew) {
+        const master = await getMasterJson();
+        setResult(master);
+        setActiveTab("documentos");
+        setFilterArea("Todas");
+        setFilterTipo("Todos");
+        setNotice(`Registro actualizado: ${master.total_documentos} documentos.`);
+      } else {
+        setNotice("No hay nuevos documentos desde la última consulta.");
+      }
     } catch (e) {
-      if (e.name !== "AbortError") setError("Error al procesar la respuesta: " + e.message);
+      if (e.name === "AbortError") return;           // user pressed Detener
+      setError("Error al consultar el backend: " + e.message);
     } finally {
       setLoading(false);
     }
@@ -215,6 +220,7 @@ function CREGMonitor() {
             {loading ? "⏹ Detener" : "⟳ Buscar ahora"}
           </button>
           {error && <div className="error-msg">{error}</div>}
+          {notice && <div className="info-msg">{notice}</div>}
         </div>
 
         {loading && (

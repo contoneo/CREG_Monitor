@@ -1,0 +1,14 @@
+{
+  "Tipos": [
+    "Circular",
+    "Resolución"
+  ],
+  "Areas": [
+    "Gas natural"
+  ],
+  "Relevancia_min": 2,
+  "calls_per_month": 4,
+  "enabled": true,
+  "recipientEmail": "contoneo@gmail.com",
+  "updatedAt": "2026-06-16T10:45:43.461Z"
+}
