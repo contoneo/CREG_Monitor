@@ -62,7 +62,7 @@ resource "aws_lambda_function" "run_alert" {
   function_name    = local.run_alert_fn
   role             = var.lambda_exec_role_arn
   handler          = "index.handler"
-  runtime          = "nodejs20.x"
+  runtime          = "nodejs22.x"
   filename         = data.archive_file.run_alert.output_path
   source_code_hash = data.archive_file.run_alert.output_base64sha256
   timeout          = 60
@@ -88,7 +88,7 @@ resource "aws_lambda_function" "save_config" {
   function_name    = local.save_config_fn
   role             = var.lambda_exec_role_arn
   handler          = "index.handler"
-  runtime          = "nodejs20.x"
+  runtime          = "nodejs22.x"
   filename         = data.archive_file.save_config.output_path
   source_code_hash = data.archive_file.save_config.output_base64sha256
   timeout          = 10
@@ -111,7 +111,7 @@ resource "aws_lambda_function" "get_master_json" {
   function_name    = local.get_master_json_fn
   role             = var.lambda_exec_role_arn
   handler          = "index.handler"
-  runtime          = "nodejs20.x"
+  runtime          = "nodejs22.x"
   filename         = data.archive_file.get_master_json.output_path
   source_code_hash = data.archive_file.get_master_json.output_base64sha256
   timeout          = 10
@@ -233,3 +233,4 @@ resource "aws_lambda_permission" "get_master_json" {
 
 output "api_url"          { value = aws_apigatewayv2_api.main.api_endpoint }
 output "run_alert_fn"     { value = aws_lambda_function.run_alert.function_name }
+output "run_alert_arn"    { value = aws_lambda_function.run_alert.arn }

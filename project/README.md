@@ -120,26 +120,40 @@ terraform output -raw s3_bucket_name
 
 Check the inbox of `sender_email` and click the AWS verification link.
 
-> ⚠️ SES sandbox only sends to verified emails. Request production access in
-> AWS Console → SES → Account Dashboard.
+> ⚠️ SES sandbox requires **both** the sender **and every recipient** to be
+> verified identities. Verify the recipient too (SES → Verified identities), or
+> request production access (AWS Console → SES → Account Dashboard) to send to
+> any address. A failed send no longer breaks `/run-alert` — the run still
+> updates the master and returns `emailSent: false` (the error is logged).
 
 ### 6. Build and deploy React app
 
 ```bash
-# In your React project root:
+# Read Terraform outputs (run from project/terraform's parent, i.e. project/).
 API_URL=$(cd terraform && terraform output -raw api_gateway_url)
 BUCKET=$(cd terraform && terraform output -raw s3_bucket_name)
 DIST=$(cd terraform && terraform output -raw cloudfront_distribution_id)
 
-echo "REACT_APP_API_URL=${API_URL}" > .env.production
+# Build the React app (it lives in ../BIA_react). It is a VITE app:
+#   - the env var MUST be VITE_API_BASE (REACT_APP_* is ignored by Vite)
+#   - the build output is dist/  (not build/)
+cd ../BIA_react
+echo "VITE_API_BASE=${API_URL}" > .env.production
 npm run build
 
-aws s3 sync build/ s3://${BUCKET} --delete
+aws s3 sync dist/ "s3://${BUCKET}" --delete
+cd -
 
 aws cloudfront create-invalidation \
-  --distribution-id ${DIST} \
+  --distribution-id "${DIST}" \
   --paths "/*"
 ```
+
+> The `VITE_API_BASE` / `dist/` details matter: building with `REACT_APP_API_URL`
+> (or from `build/`) ships a bundle that falls back to `http://localhost:8787`,
+> so the deployed site fails with `ERR_CONNECTION_REFUSED` / a local-network
+> permission prompt. After building, confirm the API URL is baked in:
+> `grep -c -F 'localhost:8787' dist/assets/*.js` should print `0`.
 
 ---
 

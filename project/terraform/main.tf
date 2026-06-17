@@ -92,10 +92,11 @@ module "api" {
 }
 
 module "scheduler" {
-  source              = "./modules/scheduler"
-  project_name        = var.project_name
-  environment         = var.environment
-  scheduler_role_arn  = module.iam.scheduler_role_arn
-  api_endpoint        = "${module.api.api_url}/run-alert"
-  schedule_expression = var.schedule_expression
+  source               = "./modules/scheduler"
+  project_name         = var.project_name
+  environment          = var.environment
+  scheduler_role_arn   = module.iam.scheduler_role_arn
+  scheduler_role_name  = module.iam.scheduler_role_name
+  run_alert_lambda_arn = module.api.run_alert_arn
+  schedule_expression  = var.schedule_expression
 }

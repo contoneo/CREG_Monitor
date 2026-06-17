@@ -103,6 +103,14 @@ function CREGMonitor() {
       })
       .finally(() => { configInitialized.current = true; });
   }, []);
+
+  // Reflect the stored backend master on startup (falls back to the bundled seed).
+  useEffect(() => {
+    getMasterJson()
+      .then(m => { if (m?.documentos?.length || m?.proyectos_en_consulta?.length) setResult(m); })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     if (!configInitialized.current) return;
     // Debounce: collapse rapid edits (slider drags, typing) into one save.
@@ -133,9 +141,10 @@ function CREGMonitor() {
       const { newItems, emailSent } = await runAlert(abortRef.current.signal);
       const hasNew =
         (newItems?.documentos?.length ?? 0) + (newItems?.proyectos_en_consulta?.length ?? 0) > 0;
+      // Always refresh from the backend master so the table reflects stored state.
+      const master = await getMasterJson();
+      setResult(master);
       if (hasNew) {
-        const master = await getMasterJson();
-        setResult(master);
         setActiveTab("documentos");
         setFilterArea("Todas");
         setFilterTipo("Todos");

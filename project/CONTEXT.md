@@ -38,7 +38,7 @@ React App (S3 + CloudFront)
   └─ GET  /get-master-json → Lambda: get-master-json → DynamoDB results table
 
 EventBridge Scheduler (cron)
-  └─ POST /run-alert  (same endpoint as React — no separate Lambda)
+  └─ invokes the run-alert Lambda directly (payload { periodic: true })
 ```
 
 ---
@@ -54,7 +54,12 @@ EventBridge Scheduler (cron)
 - Compares response with master record → finds new items by `numero_nombre`
 - Merges new items into master record (DynamoDB results table)
 - Sends SES email notification only when alerts are enabled, new items were found,
-  and `recipientEmail` is a valid address (regex check, same rule as the frontend)
+  and `recipientEmail` is a valid address (regex check, same rule as the frontend).
+  A send failure (e.g. SES sandbox / unverified address) is caught and logged — it
+  does not fail the run; `emailSent` comes back `false`.
+- `enabled` gates only the **periodic** (cron) run and the email. A **manual** UI
+  call always runs the search regardless of `enabled` (the periodic invocation is
+  detected via `event.periodic === true`).
 - Returns: `{ newItems: { documentos, proyectos_en_consulta }, emailSent: bool }`
 - React can pass `{ override: { Tipos, Areas, Relevancia_min, Rango } }` in body
 
@@ -148,10 +153,16 @@ results across calls. New items are merged in by `run-alert` on every invocation
 Deduplication key: `numero_nombre` for both `documentos` and `proyectos_en_consulta`.
 `rango_de_fechas` expands to cover the widest date range seen across all calls.
 
-### EventBridge calls the same /run-alert endpoint as React
-No separate periodic Lambda. EventBridge Scheduler makes an HTTP POST to
-`/run-alert` with `{ periodic: true }`. The Lambda reads all config from
-DynamoDB so both callers follow the same path.
+### EventBridge invokes the run-alert Lambda directly
+There is still no separate periodic Lambda — the schedule reuses `run-alert`.
+But EventBridge **Scheduler** cannot POST to an arbitrary HTTP endpoint (its
+universal target only calls AWS SDK actions; `aws-sdk:apigateway:invoke` does not
+exist). So the schedule **invokes the run-alert Lambda directly** with payload
+`{ periodic: true }`. This is equivalent to the API path: the handler reads all
+config from DynamoDB and tolerates a direct-invoke event (`event.body` defaults
+to `{}`). The scheduler role is granted `lambda:InvokeFunction` on `run-alert`
+in the scheduler module. (The React UI still calls `POST /run-alert` through API
+Gateway — only the periodic trigger differs.)
 
 ### Alert condition is always the same
 New items = `numero_nombre` values in `documentos` or `proyectos_en_consulta`
@@ -198,7 +209,7 @@ terraform/
     ├── storage/          ← DynamoDB config table + results table
     ├── email/            ← SES identity + DKIM
     ├── api/              ← API GW + 3 Lambda functions + CloudWatch log groups
-    ├── scheduler/        ← EventBridge Scheduler HTTP target
+    ├── scheduler/        ← EventBridge Scheduler → run-alert Lambda (+ invoke policy)
     └── frontend/         ← S3 bucket + CloudFront distribution
 ```
 
@@ -252,8 +263,11 @@ Set `REACT_APP_API_URL` in `.env.production` to the `api_gateway_url` Terraform 
 
 ## Known issues / watch-outs
 
-1. **SES sandbox** — by default only sends to verified emails. Request production
-   access in AWS Console → SES → Account Dashboard before going live.
+1. **SES sandbox** — by default only sends between **verified** identities, so
+   both the sender **and** each recipient must be verified. Verify the recipient
+   (SES → Verified identities) or request production access (AWS Console → SES →
+   Account Dashboard) before going live. A send failure no longer breaks
+   `/run-alert` (it's caught; `emailSent: false`).
 2. **DynamoDB item size limit** — 400KB per item. The master record grows over
    time as documents accumulate. Monitor item size if the app runs for months.
    Consider archiving old items if needed.
@@ -261,6 +275,8 @@ Set `REACT_APP_API_URL` in `.env.production` to the `api_gateway_url` Terraform 
    (unlikely with Sonnet), increase `timeout` in `terraform/modules/api/main.tf`.
 4. **CORS** — allowed origins are CloudFront domain + localhost:3000. If your
    dev server runs on a different port, update `allowed_origin` in the api module.
-5. **EventBridge HTTP target** — the scheduler role currently has no explicit
-   policy to call API Gateway. If you get permission errors on the scheduler,
-   add `execute-api:Invoke` to the scheduler IAM role in `modules/iam/main.tf`.
+5. **Scheduler invokes Lambda directly** — the schedule targets the `run-alert`
+   Lambda (not API Gateway), and the scheduler role's `lambda:InvokeFunction`
+   policy is defined in `modules/scheduler/main.tf`. If you change the periodic
+   payload, note the Lambda receives it as the raw `event` (no API Gateway
+   wrapper), so `event.body` is absent and defaults to `{}`.

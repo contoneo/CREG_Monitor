@@ -87,9 +87,9 @@ resource "aws_iam_role" "scheduler" {
   })
 }
 
-# EventBridge → API Gateway requires no special policy beyond trust;
-# the API Gateway endpoint is public (protected by an API key header).
-# If you add API GW resource policy later, update this role accordingly.
+# The invoke permission for this role (lambda:InvokeFunction on run-alert) is
+# attached in the scheduler module, which is where the target Lambda ARN is known.
 
 output "lambda_exec_role_arn" { value = aws_iam_role.lambda_exec.arn }
 output "scheduler_role_arn"   { value = aws_iam_role.scheduler.arn }
+output "scheduler_role_name"  { value = aws_iam_role.scheduler.name }

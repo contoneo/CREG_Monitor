@@ -273,11 +273,16 @@ export const handler = async (event) => {
   }
 
   try {
-    const body     = JSON.parse(event.body || "{}");
-    const config   = await getConfig();
+    const body       = JSON.parse(event.body || "{}");
+    // Scheduler invokes the Lambda directly with { periodic: true } as the event;
+    // API Gateway carries the JSON in event.body. Support both shapes.
+    const isPeriodic = event.periodic === true || body.periodic === true;
+    const config     = await getConfig();
 
-    if (!config.enabled) {
-      console.log("Alerts disabled in config.");
+    // Only the periodic (cron) run respects the enabled flag — a manual search
+    // from the UI always runs. Email sending is gated separately, below.
+    if (isPeriodic && !config.enabled) {
+      console.log("Periodic run skipped: alerts disabled in config.");
       return {
         statusCode: 200,
         headers: corsHeaders(origin),
@@ -317,9 +322,15 @@ export const handler = async (event) => {
     // Send only when alerts are enabled, there are new items, and the
     // recipient address is valid (same rule as the local mock api.js).
     if (hasNew && config.enabled && EMAIL_RE.test(config.recipientEmail ?? "")) {
-      await sendNotification(config.recipientEmail, newItems);
-      emailSent = true;
-      console.log(`Alert email sent to ${config.recipientEmail}`);
+      try {
+        await sendNotification(config.recipientEmail, newItems);
+        emailSent = true;
+        console.log(`Alert email sent to ${config.recipientEmail}`);
+      } catch (e) {
+        // A failed notification (e.g. SES sandbox / unverified address) must not
+        // fail the whole run — the master was already updated. Log and continue.
+        console.error("SES send failed (continuing):", e);
+      }
     }
 
     console.log(`New docs: ${newItems.documentos.length}, new projects: ${newItems.proyectos_en_consulta.length}`);

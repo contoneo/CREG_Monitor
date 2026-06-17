@@ -31,7 +31,7 @@ variable "claude_api_key" {
   description = "Anthropic Claude API key — stored in SSM SecureString. Optional while run-alert serves mock data; required once the live Claude call is wired in."
   type        = string
   sensitive   = true
-  default     = ""
+  default     = "default"
 }
 
 variable "schedule_expression" {
