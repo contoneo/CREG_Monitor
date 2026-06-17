@@ -1,89 +1,94 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code working in `BIA_react/` (the Monitor CREG app + local
+mock backend). Repo-wide context is in the root `CLAUDE.md`.
 
 ## Commands
 
 ```bash
-npm run dev      # Start Vite dev server (http://localhost:5173)
-npm run build    # Build for production
-npm run lint     # Run ESLint
+npm run dev      # Vite dev server (http://localhost:5173)
+npm run backend  # Local mock backend HTTP server (node api.js, http://localhost:8787)
+npm run build    # Production build (dist/)
+npm run lint     # ESLint
+node api.js test # One-shot: run the mock alert once and print the result
 ```
 
-There is no test suite.
+There is no test suite. Run `dev` and `backend` together during development.
 
 ## Project overview
 
-**Monitor CREG** — a browser-based tool for monitoring Colombian energy regulation (CREG: Comisión de Regulación de Energía y Gas). It queries the Anthropic API directly from the browser, using Claude with the `web_search_20250305` tool to search CREG sources in real time and returns structured JSON with regulatory documents.
+**Monitor CREG** — a browser tool for monitoring Colombian energy regulation
+(CREG: Comisión de Regulación de Energía y Gas). The UI lets the user configure
+filters (document types, areas, minimum relevance, alert email/frequency) and
+view an accumulating list of regulatory documents and projects-in-consultation.
 
-## Implementation
+The app does **not** call the Anthropic API from the browser. The frontend talks
+only to a backend over four HTTP endpoints; the backend owns the (eventual)
+Claude search. Today that backend is a **local mock** (`api.js`) that serves
+canned data so the full flow can be validated before wiring the live call.
 
-React/Vite single-component app (`creg_monitor.jsx` + `index.html`):
-- React 19, Vite 8
-- Entry: `index.html` mounts `<div id="root">`, `creg_monitor.jsx` calls `createRoot` directly
-- `SYSTEM_PROMPT` is defined inline in the JSX file
-- Styles in `creg_monitor.css`
-- **The `fetch` call to `https://api.anthropic.com/v1/messages` lacks the `x-api-key` header** — must be added or proxied before live queries work
+## Architecture
 
-## State & data flow
+- **Frontend** — `creg_monitor.jsx`, a single React 19 component built with
+  Vite 8. `index.html` mounts `#root`; the JSX calls `createRoot` directly.
+  Styles in `creg_monitor.css`.
+- **Client** — `api.client.js`: browser fetch wrapper exposing `runAlert(signal)`,
+  `saveConfig(config)`, `getConfig()`, `getMasterJson()`. Base URL from
+  `VITE_API_BASE` (default `http://localhost:8787`).
+- **Mock backend** — `api.js`: a Node HTTP server (port `8787`) implementing the
+  four endpoints from local JSON in `data/`. `node api.js test` runs one alert.
 
-- On load the app pre-populates `result` with `SEED_RESULT` from `data/seed.js` (merged snapshots) so the UI is never empty
-- `handleSearch` calls the API, parses the JSON response, then **merges** it into the existing `result` via `mergeDedupe` and `mergeRango` — successive queries accumulate rather than replace data
-- `abortRef` holds an `AbortController` so the in-flight request can be cancelled
+## HTTP contract (mirrors the AWS Lambdas in `project/`)
 
-## data/seed.js
+- `POST /run-alert` → reads a mock Claude response, merges it into the
+  `master_init.json` baseline, writes `data/master.json`, returns
+  `{ newItems: { documentos, proyectos_en_consulta }, emailSent }`.
+- `POST /save-config` → writes `data/config.json`.
+- `GET  /get-config` → reads `data/config.json` (or `null`).
+- `GET  /get-master-json` → reads `data/master.json`.
 
-Exports:
-- `SEED_RESULT` — pre-merged result built from two real snapshots (`data/2026-05-01_14.json`, `data/2026-05-15_28.json`); snap2 wins on duplicates
-- `mergeDedupe(arr1, arr2)` — deduplicates by `numero_nombre` (normalised: strips "No.", collapses whitespace, lowercased)
-- `mergeRango(snapshots)` — returns `[earliest_start, latest_end]` across all snapshots' `rango_de_fechas`
+`emailSent` is true only when alerts are `enabled`, there are new items, and
+`recipientEmail` is valid (regex shared with the recipient `<input>` so UI and
+backend agree). Both `saveConfig` and `runAlert` log changes to the console
+(`[config] …` and `[master.json] …`).
 
-## API call structure
+## State & data flow (`creg_monitor.jsx`)
 
-```js
-{
-  model: "claude-sonnet-4-20250514",
-  max_tokens: 8000,
-  tools: [{ type: "web_search_20250305", name: "web_search" }],
-  system: SYSTEM_PROMPT,
-  messages: [{ role: "user", content: JSON.stringify({ Tipos, Rango, Areas, Relevancia_min }) }]
-}
-```
+- Seeds `result` from `data/master_init.json` (imported at build) so the UI is
+  never empty; on mount it also calls `getMasterJson()` and `getConfig()`.
+- **Config auto-save**: a debounced (~600 ms) effect persists any config change
+  via `saveConfig()`; a `configInitialized` ref prevents saving during the
+  initial load.
+- **Search** ("Buscar ahora"): `handleSearch` calls `runAlert(signal)`; if
+  `newItems` is non-empty it re-fetches the master and refreshes the table, and
+  reports whether the alert email was sent. An `AbortController` (`abortRef`)
+  backs the "Detener" button.
 
-Sources searched (in order): `creg.gov.co` → `gestornormativo.creg.gov.co` → `minenergia.gov.co` → `diario-oficial.vlex.com.co`
+## Mock-interim scaffolding — do not remove
 
-## Response JSON schema
+`SYSTEM_PROMPT` in `creg_monitor.jsx` and the mock plumbing are kept for the
+upcoming live Anthropic call (which will live in the backend's `runAlert`). The
+unused-var lint on `SYSTEM_PROMPT` is acceptable; do not delete it or add an
+eslint-disable.
+
+## Not tracked in git
+
+`data/` (runtime state + mock/seed JSON, kept on disk) and `grounding_data/`
+(dev/research artifacts: prompts, sample responses, older prototypes,
+stakeholder requirements) are gitignored. `node_modules/`, `dist/`, and
+`.env.production` too.
+
+## Response JSON schema (per document)
 
 ```json
 {
-  "fecha_consulta": "YYYY-MM-DD",
-  "total_documentos": N,
-  "fuentes_consultadas": ["url"],
-  "documentos": [{
-    "numero_nombre": "str",
-    "fecha": "YYYY-MM-DD",
-    "tipo": "Resolución|Circular|Acuerdo|Concepto técnico",
-    "area": "str",
-    "relevancia": 1,
-    "confianza": "alta|media|baja",
-    "url_oficial": "https://...",
-    "modifica_a": ["str"],
-    "descripcion": "str"
-  }],
-  "proyectos_en_consulta": [{ "numero_nombre":"","fecha":"","area":"","url_oficial":"","descripcion":"" }]
+  "numero_nombre": "str", "fecha": "YYYY-MM-DD",
+  "tipo": "Resolución|Circular|Acuerdo|Concepto técnico",
+  "area": "str", "relevancia": 1, "confianza": "alta|media|baja",
+  "url_oficial": "https://", "modifica_a": ["str"], "descripcion": "str"
 }
 ```
 
-Note: the app also tracks `rango_de_fechas: ["YYYY-MM-DD","YYYY-MM-DD"]` on the result object (computed client-side, not returned by the API).
-
-`confianza` semantics: `alta` = direct URL verified, `media` = referenced but verified, `baja` = secondary source.
-
-## grounding_data/
-
-Dev/research artifacts — not part of the build:
-- `prompts/Instrucciones` — system prompt draft used for manual API calls
-- `prompts/preguntas` — sample query JSON payloads
-- `prompts/regex` — filter regexes for document type names
-- `json_tests/` — sample API response JSON for UI testing without live calls
-- `test_pages/` — older standalone implementations (`creg_monitor_agent.html`, earlier JSX versions)
-- `requirements/` — stakeholder requirements (CSV/ODS + image)
+`confianza`: `alta` = direct URL verified, `media` = referenced but verified,
+`baja` = secondary source. The master record also carries
+`rango_de_fechas`, `fuentes_consultadas`, `total_documentos`, and `lastUpdated`.
