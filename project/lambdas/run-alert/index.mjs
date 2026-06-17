@@ -28,6 +28,7 @@ import { DynamoDBClient, GetItemCommand,
          PutItemCommand }                        from "@aws-sdk/client-dynamodb";
 import { SESClient, SendEmailCommand }           from "@aws-sdk/client-ses";
 import { marshall, unmarshall }                  from "@aws-sdk/util-dynamodb";
+import { readFile }                              from "node:fs/promises";
 
 const region       = process.env.AWS_REGION_NAME;
 const CONFIG_TABLE = process.env.CONFIG_TABLE;
@@ -43,6 +44,10 @@ let cachedApiKey = null;
 
 // Mirror of the email `pattern` on the recipient input in creg_monitor.jsx.
 const EMAIL_RE = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
+// Mock interim: a canned Anthropic response bundled with the function, used in
+// place of the live Claude call while the end-to-end flow is being validated.
+const MOCK_FILE = new URL("./mock_2025-12-01_2026-06-04.json", import.meta.url);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -147,16 +152,24 @@ async function callClaude(apiKey, entrada) {
   }
 
   const data = await response.json();
-  const text = data.content[0].text.trim();
+  return parseClaudeResponse(data);
+}
 
-  // Strip markdown code fences if present
-  const clean = text.replace(/^```json\s*/i, "").replace(/```\s*$/, "").trim();
+// Pull the structured payload out of a raw Anthropic messages response: find the
+// text block (web_search responses put it after the tool blocks), then extract
+// the embedded { ... } JSON object. Mirrors parseClaudeResponse in BIA_react/api.js.
+function parseClaudeResponse(raw) {
+  const textBlock = raw.content?.find(b => b.type === "text");
+  if (!textBlock) throw new Error("No text block in response");
+  const match = textBlock.text.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error("No JSON found in response text");
+  return JSON.parse(match[0]);
+}
 
-  try {
-    return JSON.parse(clean);
-  } catch {
-    throw new Error(`Claude returned invalid JSON: ${clean.substring(0, 200)}`);
-  }
+// Mock interim: read the bundled canned response instead of calling Claude.
+async function loadMockClaude() {
+  const raw = JSON.parse(await readFile(MOCK_FILE, "utf8"));
+  return parseClaudeResponse(raw);
 }
 
 function findNewItems(claudeResult, master) {
@@ -276,9 +289,11 @@ export const handler = async (event) => {
     const entrada = buildEntrada(config, body.override || {});
     console.log("ENTRADA:", JSON.stringify(entrada));
 
-    // Call Claude
-    const apiKey      = await getApiKey();
-    const claudeResult = await callClaude(apiKey, entrada);
+    // Mock interim: read a canned Claude response from the bundled file instead
+    // of calling the API. Restore the two lines below for the live call.
+    //   const apiKey       = await getApiKey();
+    //   const claudeResult = await callClaude(apiKey, entrada);
+    const claudeResult = await loadMockClaude();
 
     // Check for Claude error response
     if (claudeResult.error) {
