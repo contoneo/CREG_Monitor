@@ -79,16 +79,16 @@ module "frontend" {
 }
 
 module "api" {
-  source                 = "./modules/api"
-  project_name           = var.project_name
-  environment            = var.environment
-  aws_region             = var.aws_region
-  lambda_exec_role_arn   = module.iam.lambda_exec_role_arn
-  config_table_name      = module.storage.config_table_name
-  results_table_name     = module.storage.results_table_name
+  source                  = "./modules/api"
+  project_name            = var.project_name
+  environment             = var.environment
+  aws_region              = var.aws_region
+  lambda_exec_role_arn    = module.iam.lambda_exec_role_arn
+  config_table_name       = module.storage.config_table_name
+  results_table_name      = module.storage.results_table_name
   claude_api_key_ssm_path = "/${var.project_name}/${var.environment}/claude-api-key"
-  sender_email           = var.sender_email
-  allowed_origin         = "https://${module.frontend.cloudfront_domain}"
+  sender_email            = var.sender_email
+  allowed_origin          = "https://${module.frontend.cloudfront_domain}"
 }
 
 module "scheduler" {
