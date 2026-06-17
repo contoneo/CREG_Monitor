@@ -172,19 +172,39 @@ async function loadMockClaude() {
   return parseClaudeResponse(raw);
 }
 
-function findNewItems(claudeResult, master) {
-  const existingDocs     = new Set((master.documentos            || []).map(d => d.numero_nombre));
-  const existingProyectos = new Set((master.proyectos_en_consulta || []).map(p => p.numero_nombre));
+// Normalize numero_nombre for dedup — same rule as BIA_react/api.js and
+// data/seed.js: drop "No.", collapse whitespace, trim, lowercase. Without this,
+// the same document appears twice when sources format the number differently.
+function normalizeKey(name) {
+  return String(name ?? "").replace(/\bNo\.\s*/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+}
 
-  const newDocs      = (claudeResult.documentos            || []).filter(d => !existingDocs.has(d.numero_nombre));
-  const newProyectos = (claudeResult.proyectos_en_consulta || []).filter(p => !existingProyectos.has(p.numero_nombre));
+// Deduplicate by normalized numero_nombre; `incoming` wins on a collision.
+function mergeDedupe(incoming, existing) {
+  const seen = new Set();
+  return [...incoming, ...existing].filter(item => {
+    const key = normalizeKey(item.numero_nombre);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function findNewItems(claudeResult, master) {
+  const knownDocs = new Set((master.documentos            || []).map(d => normalizeKey(d.numero_nombre)));
+  const knownProy = new Set((master.proyectos_en_consulta || []).map(p => normalizeKey(p.numero_nombre)));
+
+  const newDocs      = (claudeResult.documentos            || []).filter(d => !knownDocs.has(normalizeKey(d.numero_nombre)));
+  const newProyectos = (claudeResult.proyectos_en_consulta || []).filter(p => !knownProy.has(normalizeKey(p.numero_nombre)));
 
   return { documentos: newDocs, proyectos_en_consulta: newProyectos };
 }
 
-function mergeMaster(master, claudeResult, newItems) {
-  const allDocs      = [...(master.documentos            || []), ...newItems.documentos];
-  const allProyectos = [...(master.proyectos_en_consulta || []), ...newItems.proyectos_en_consulta];
+function mergeMaster(master, claudeResult) {
+  // Deduplicated union by normalized numero_nombre; the fresh response wins, and
+  // any duplicates already in the stored master are collapsed too.
+  const allDocs      = mergeDedupe(claudeResult.documentos            || [], master.documentos            || []);
+  const allProyectos = mergeDedupe(claudeResult.proyectos_en_consulta || [], master.proyectos_en_consulta || []);
 
   // Expand rango_de_fechas to widest range seen
   const allDates = [
@@ -205,6 +225,7 @@ function mergeMaster(master, claudeResult, newItems) {
   return {
     resultKey:             "master",
     rango_de_fechas:       rango,
+    total_documentos:      allDocs.length,
     fuentes_consultadas:   fuentes,
     documentos:            allDocs,
     proyectos_en_consulta: allProyectos,
@@ -313,7 +334,7 @@ export const handler = async (event) => {
     // Load master, find new items, merge, save
     const master   = await getMasterRecord();
     const newItems = findNewItems(claudeResult, master);
-    const updated  = mergeMaster(master, claudeResult, newItems);
+    const updated  = mergeMaster(master, claudeResult);
     await saveMaster(updated);
 
     const hasNew   = newItems.documentos.length > 0 || newItems.proyectos_en_consulta.length > 0;
