@@ -4,13 +4,21 @@ This document summarizes all architectural decisions made during the initial
 design phase. It is intended to be read by Claude Code to provide full context
 for continuing development without needing the original conversation.
 
+> **Current phase — mock interim.** The `run-alert` Lambda does not call Claude
+> yet; it reads a bundled canned response via `loadMockClaude()`. `callClaude` +
+> `SYSTEM_PROMPT` + the SSM-key plumbing are kept as scaffolding. Going live =
+> swap `loadMockClaude()` → `callClaude(apiKey, entrada)` and set
+> `TF_VAR_claude_api_key`. The design below is the full target; mock-specific
+> notes are called out inline.
+
 ---
 
 ## What this app does
 
 A React web application that:
 1. Calls the Anthropic Claude API (server-side via Lambda) to retrieve structured
-   regulatory document data based on configurable filters.
+   regulatory document data based on configurable filters. *(Mock interim: a
+   bundled canned response stands in for the live call.)*
 2. Stores the accumulated results in a single DynamoDB "master record" that is
    the union of all API responses, deduplicated by `numero_nombre`.
 3. Sends a notification email via SES when new regulatory documents or projects
@@ -28,7 +36,7 @@ React App (S3 + CloudFront)
   ├─ POST /run-alert       → Lambda: run-alert
   │                              → SSM (Claude API key, server-side only)
   │                              → DynamoDB config table (read config + ENTRADA)
-  │                              → Claude API (returns structured JSON)
+  │                              → Claude API (returns structured JSON) [MOCK: bundled file]
   │                              → DynamoDB results table (merge master record)
   │                              → SES (if new items detected)
   │                            ← { newItems, emailSent }
@@ -49,10 +57,13 @@ EventBridge Scheduler (cron)
 - Triggered by: API Gateway (React) and EventBridge Scheduler
 - Reads config from DynamoDB config table
 - Builds ENTRADA from config + computed Rango dates
-- Calls Claude API with system prompt (server-side, key from SSM)
+- Gets the structured response. **Mock interim:** `loadMockClaude()` reads a
+  bundled file; the live path is `callClaude` (system prompt, key from SSM)
 - Validates response against schema
-- Compares response with master record → finds new items by `numero_nombre`
-- Merges new items into master record (DynamoDB results table)
+- Compares with the master record → finds new items by **normalized**
+  `numero_nombre`
+- Merges into the master record as a deduplicated union (normalized key, fresh
+  response wins); recomputes `total_documentos` (DynamoDB results table)
 - Sends SES email notification only when alerts are enabled, new items were found,
   and `recipientEmail` is a valid address (regex check, same rule as the frontend).
   A send failure (e.g. SES sandbox / unverified address) is caught and logged — it
@@ -149,9 +160,14 @@ in plaintext.
 
 ### Single master record in DynamoDB (not one record per API call)
 The results table holds one item (`resultKey = "master"`) that accumulates all
-results across calls. New items are merged in by `run-alert` on every invocation.
-Deduplication key: `numero_nombre` for both `documentos` and `proyectos_en_consulta`.
-`rango_de_fechas` expands to cover the widest date range seen across all calls.
+results across calls. On every invocation `run-alert` merges the response into a
+deduplicated union. Deduplication key: a **normalized** `numero_nombre` (drop
+`No.`, collapse whitespace, lowercase) for both `documentos` and
+`proyectos_en_consulta` — the fresh response wins on a collision, and any
+duplicates already stored get collapsed too. `total_documentos` is recomputed
+from the merged list, and `rango_de_fechas` expands to the widest range seen.
+The same `normalizeKey`/`mergeDedupe` logic lives in `BIA_react/api.js` and
+`data/seed.js` — keep all three in sync.
 
 ### EventBridge invokes the run-alert Lambda directly
 There is still no separate periodic Lambda — the schedule reuses `run-alert`.
@@ -189,8 +205,8 @@ Example: 3 calls/month in a 30-day month → interval = 10 days.
 - **IaC**: Terraform >= 1.5, modular structure under `terraform/modules/`
 - **Region**: eu-central-1 (configurable via `aws_region` variable)
 - **Frontend**: S3 + CloudFront (OAC, SPA fallback, PriceClass_100)
-- **API**: API Gateway HTTP v2 + Lambda (Node.js 20.x, ES modules .mjs)
-- **Scheduler**: EventBridge Scheduler (aws_scheduler_schedule, HTTP target)
+- **API**: API Gateway HTTP v2 + Lambda (Node.js 22.x, ES modules .mjs)
+- **Scheduler**: EventBridge Scheduler (aws_scheduler_schedule, direct Lambda invoke)
 - **Email**: AWS SES (verify sender email + optional domain DKIM)
 - **Secrets**: SSM Parameter Store SecureString for Claude API key
 - **Observability**: X-Ray tracing active on all Lambdas, CloudWatch Logs 14-day retention
@@ -220,6 +236,10 @@ export TF_VAR_sender_email="..."            # → Lambda env var + SES identity
 ```
 Non-secret config goes in `terraform/terraform.tfvars` (safe to commit).
 
+> **Mock interim:** `claude_api_key` now defaults to empty, so it is **optional**
+> while `run-alert` serves the mock — you can deploy with no key. `sender_email`
+> is still required (SES identity). Set `claude_api_key` again when going live.
+
 ---
 
 ## React frontend (`creg_monitor.jsx`)
@@ -236,28 +256,38 @@ CloudFront. Behaviors relevant to the backend contract:
   `saveConfig()`. The save is **debounced (~600 ms)** so slider drags and typing
   collapse into a single request, and a mount guard prevents a save firing before
   the initial `getConfig()` load completes.
-- **Search ("Buscar ahora")** — calls `runAlert()` and reads the
-  `{ newItems, emailSent }` response: if `newItems` is non-empty it re-fetches the
-  master with `getMasterJson()` and refreshes the table, and it surfaces whether
-  the alert email was sent. The in-flight request is cancellable ("Detener") via
-  an `AbortController`.
+- **Search ("Buscar ahora")** — calls `runAlert()`, reads `{ newItems, emailSent }`,
+  then **always** re-fetches the master with `getMasterJson()` and refreshes the
+  table (so it reflects stored state even when nothing new was found). The notice
+  differs for new vs. none and surfaces whether the email was sent. The in-flight
+  request is cancellable ("Detener") via an `AbortController`.
 - **Email validity** — the recipient `<input>` carries the same email regex used
   by the backend gate, so the UI and `run-alert`/`save-config` agree on what
   counts as a valid address.
 
-## React API client (src/api.js)
+## React API client
 
-Four functions:
-- `getMasterJson()`      → GET  /get-master-json  (call on app startup)
+The deployed frontend is **`BIA_react/`** (Vite). Its client is
+`BIA_react/api.client.js`, with four functions:
+- `getMasterJson()`      → GET  /get-master-json  (called on app startup)
 - `getConfig()`          → GET  /get-config
 - `saveConfig(config)`   → POST /save-config
-- `runAlert(override?)`  → POST /run-alert  (returns `{ newItems, emailSent }`)
+- `runAlert(signal?)`    → POST /run-alert  (returns `{ newItems, emailSent }`)
 
-Set `REACT_APP_API_URL` in `.env.production` to the `api_gateway_url` Terraform output.
+The base URL comes from **`VITE_API_BASE`** (a Vite var — `REACT_APP_*` is
+ignored). Set it to the `api_gateway_url` output **at build time**, build to
+`dist/`, then upload `dist/` to S3 (see `README.md`). In dev it falls back to
+`http://localhost:8787`; a production build with no `VITE_API_BASE` uses an empty
+(same-origin) base and logs an error instead of silently calling localhost.
 
-> Note: during local validation the frontend runs against a mock backend
-> (`api.js` + `api.client.js`, `VITE_API_BASE`) that mirrors these four endpoints
-> from local JSON files instead of AWS. The deployment target is unchanged.
+> `project/src/api.js` is a **legacy** CRA-style client (`REACT_APP_API_URL`) and
+> is **not** deployed — it predates the move to `BIA_react/`. Ignore it (or delete
+> it) for current work.
+>
+> During local validation the same UI runs against the mock backend
+> (`BIA_react/api.js`, served on `VITE_API_BASE=http://localhost:8787`), which
+> mirrors these four endpoints from local JSON. The AWS deployment target is
+> unchanged.
 
 ---
 
@@ -280,3 +310,14 @@ Set `REACT_APP_API_URL` in `.env.production` to the `api_gateway_url` Terraform 
    policy is defined in `modules/scheduler/main.tf`. If you change the periodic
    payload, note the Lambda receives it as the raw `event` (no API Gateway
    wrapper), so `event.body` is absent and defaults to `{}`.
+6. **Frontend build var (common footgun)** — build the React app with
+   `VITE_API_BASE=<api_gateway_url>` and upload **`dist/`**. Using `REACT_APP_*`
+   or `build/` ships a bundle that falls back to `http://localhost:8787`, so the
+   live site fails with `ERR_CONNECTION_REFUSED` / a local-network prompt. Verify
+   before upload: `grep -c -F 'localhost:8787' dist/assets/*.js` → `0`. After
+   `aws s3 sync` + CloudFront invalidation, hard-reload; the hashed JS filename
+   should change (if not, you're seeing a cached object).
+7. **run-alert mock file must be bundled** — `loadMockClaude()` reads
+   `mock_2025-12-01_2026-06-04.json` from the function dir. It's zipped by the
+   `archive_file` in `modules/api`; if it's missing from the zip the Lambda 500s
+   with `ENOENT`. `terraform apply` repackages on source change.

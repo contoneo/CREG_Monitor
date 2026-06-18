@@ -19,14 +19,22 @@ This is a single repository with two related parts:
 The frontend and backend share one HTTP contract — four endpoints
 (`/run-alert`, `/save-config`, `/get-config`, `/get-master-json`) — and one data
 model (a single accumulating "master" record of regulatory documents,
-deduplicated by `numero_nombre`). `BIA_react/api.js` is the **local mock**
-implementation of that contract from JSON files; `project/lambdas/*` is the
-**production** implementation on AWS. Keep the two in sync when the contract
-changes.
+deduplicated by a **normalized** `numero_nombre`: drop `No.`, collapse
+whitespace, lowercase; the fresh response wins on a collision). `BIA_react/api.js`
+is the **local mock** implementation of that contract from JSON files;
+`project/lambdas/*` is the **AWS** implementation. Keep the two in sync when the
+contract or the dedup/merge rules change.
 
-## Current phase
+## Current phase — mock interim
 
-The app runs on **mock data** while the behavior is validated; the real
-Anthropic API call comes later. Scaffolding for the live call (e.g.
-`SYSTEM_PROMPT`, `callClaude`) is kept on purpose — do not remove it as "dead
-code."
+The app runs on **mock data** end to end while the behavior is validated; the
+real Anthropic call comes later. Today **both** backends serve a canned response
+instead of calling the API:
+- `BIA_react/api.js` `runAlert()` reads a mock JSON file.
+- `project/lambdas/run-alert` reads a **bundled** mock file via `loadMockClaude()`
+  (the `callClaude` + `SYSTEM_PROMPT` code is present but not called).
+
+Going live = swapping `loadMockClaude()` back to `callClaude(apiKey, entrada)` in
+the Lambda (and the equivalent in `api.js`), then setting `TF_VAR_claude_api_key`.
+Keep the live-call scaffolding (`SYSTEM_PROMPT`, `callClaude`, the SSM key
+plumbing) — do **not** remove it as "dead code."

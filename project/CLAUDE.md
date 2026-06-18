@@ -15,16 +15,21 @@ Monitor CREG). Repo-wide context is in the root `CLAUDE.md`.
 
 ```
 lambdas/
-  run-alert/        # POST /run-alert  — Claude call + merge master + SES email
+  run-alert/        # POST /run-alert — response (MOCK INTERIM: bundled file) + merge + SES
+                    #   also bundles mock_2025-12-01_2026-06-04.json (must be in the zip)
   save-config/      # POST /save-config, GET /get-config
   get-master-json/  # GET  /get-master-json
-src/api.js          # React API client used by the deployed frontend
+src/api.js          # LEGACY CRA-style client (REACT_APP_API_URL) — NOT deployed
 terraform/          # modular IaC: iam, storage, email, api, scheduler, frontend
 ```
 
-The Lambdas in `lambdas/*` are the **production** implementation of the same
-HTTP contract that `BIA_react/api.js` mocks locally — keep them in sync when the
-contract changes.
+The Lambdas in `lambdas/*` are the AWS implementation of the same HTTP contract
+that `BIA_react/api.js` mocks locally — keep them in sync when the contract or
+the merge/dedup rules change.
+
+The **deployed frontend is `BIA_react/`** (built with Vite, uploaded to S3 by the
+README's deploy step). `src/api.js` here is a leftover from the original CRA-style
+design and is not used — the live app uses `BIA_react/api.client.js`.
 
 ## Commands
 
@@ -38,8 +43,19 @@ for the full sequence and for building + uploading the frontend after apply.
 
 ## Conventions
 
-- Lambdas are Node.js 20 ES modules (`index.mjs`, `export const handler`).
+- Lambdas are **Node.js 22.x** ES modules (`index.mjs`, `export const handler`).
+- **Mock interim:** `run-alert` reads a bundled mock via `loadMockClaude()`
+  instead of calling Claude. So `TF_VAR_claude_api_key` is optional right now
+  (the variable defaults to empty) and no key is needed to deploy or run the demo.
+  Going live = swap `loadMockClaude()` → `callClaude(apiKey, entrada)` and set the
+  key. Keep the `callClaude`/`SYSTEM_PROMPT`/SSM scaffolding.
 - The Claude API key is server-side only (SSM SecureString); never put it in the
   React bundle or Lambda env vars in plaintext.
 - Email is sent only when alerts are `enabled`, there are new items, and
-  `recipientEmail` is valid — the same regex the frontend uses.
+  `recipientEmail` is valid — the same regex the frontend uses; a send failure is
+  caught (never fails the run). SES sandbox needs **both** sender and recipient
+  verified.
+- Dedup/merge key is a **normalized** `numero_nombre` (drop `No.`, collapse
+  whitespace, lowercase); the fresh response wins on a collision.
+- Build/deploy the frontend with **`VITE_API_BASE`** (not `REACT_APP_*`) and
+  upload **`dist/`** — see `README.md`. A wrong var ships a localhost bundle.

@@ -34,7 +34,11 @@ canned data so the full flow can be validated before wiring the live call.
   Styles in `creg_monitor.css`.
 - **Client** — `api.client.js`: browser fetch wrapper exposing `runAlert(signal)`,
   `saveConfig(config)`, `getConfig()`, `getMasterJson()`. Base URL from
-  `VITE_API_BASE` (default `http://localhost:8787`).
+  `VITE_API_BASE`. In **dev** it falls back to `http://localhost:8787`; a
+  **production** build MUST set `VITE_API_BASE` (the API Gateway URL) at build
+  time — otherwise it uses an empty (same-origin) base and logs an error rather
+  than silently calling localhost. Vite only reads `VITE_*` vars, and the build
+  output is `dist/` (see `project/README.md` for the deploy command).
 - **Mock backend** — `api.js`: a Node HTTP server (port `8787`) implementing the
   four endpoints from local JSON in `data/`. `node api.js test` runs one alert.
 
@@ -59,10 +63,11 @@ backend agree). Both `saveConfig` and `runAlert` log changes to the console
 - **Config auto-save**: a debounced (~600 ms) effect persists any config change
   via `saveConfig()`; a `configInitialized` ref prevents saving during the
   initial load.
-- **Search** ("Buscar ahora"): `handleSearch` calls `runAlert(signal)`; if
-  `newItems` is non-empty it re-fetches the master and refreshes the table, and
-  reports whether the alert email was sent. An `AbortController` (`abortRef`)
-  backs the "Detener" button.
+- **Search** ("Buscar ahora"): `handleSearch` calls `runAlert(signal)`, then
+  **always** re-fetches the master with `getMasterJson()` and refreshes the table
+  (so it reflects stored state even when nothing new was found). The notice
+  differs for new items vs none, and reports whether the alert email was sent. An
+  `AbortController` (`abortRef`) backs the "Detener" button.
 
 ## Mock-interim scaffolding — do not remove
 
