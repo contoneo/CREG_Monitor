@@ -2,17 +2,21 @@
  * Lambda: run-alert
  *
  * Called by:
- *   - React UI  → POST /run-alert  (may include override ENTRADA in body)
- *   - EventBridge Scheduler → POST /run-alert  (body: { periodic: true })
+ *   - React UI  → POST /run-alert via API Gateway (may include override ENTRADA in body)
+ *   - EventBridge Scheduler → direct Lambda invoke, event = { periodic: true }
+ *     (Scheduler can't POST to an HTTP endpoint; it invokes this function directly,
+ *      so the payload is the raw `event`, not `event.body`.)
  *
  * Flow:
  *   1. Read config from DynamoDB (config table)
  *   2. Build ENTRADA — use saved config, override with body fields if provided
- *   3. Call Claude API → get structured JSON response
+ *   3. Get the Claude response. MOCK INTERIM: reads a bundled canned response
+ *      (loadMockClaude) instead of calling the API; swap to callClaude for live.
  *   4. Validate response schema
- *   5. Compare with master record in DynamoDB → find new items
- *   6. Merge new items into master record
- *   7. If new items found → send notification email via SES
+ *   5. Compare with master record in DynamoDB → find new items (normalized key)
+ *   6. Merge into master record (deduplicated union, fresh response wins)
+ *   7. If new items found and alerts enabled with a valid recipient → email via
+ *      SES (failure is caught and logged, does not fail the run)
  *   8. Return { newItems, emailSent }
  *
  * ENTRADA schema:  { Tipos: [], Rango: ["YYYY-MM-DD","YYYY-MM-DD"], Areas: [], Relevancia_min: 1 }
