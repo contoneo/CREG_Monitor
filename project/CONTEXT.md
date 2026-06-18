@@ -280,9 +280,8 @@ ignored). Set it to the `api_gateway_url` output **at build time**, build to
 `http://localhost:8787`; a production build with no `VITE_API_BASE` uses an empty
 (same-origin) base and logs an error instead of silently calling localhost.
 
-> `project/src/api.js` is a **legacy** CRA-style client (`REACT_APP_API_URL`) and
-> is **not** deployed — it predates the move to `BIA_react/`. Ignore it (or delete
-> it) for current work.
+> (A legacy CRA-style `project/src/api.js` client used to live here; it was
+> removed — the deployed app is `BIA_react/` and uses `api.client.js`.)
 >
 > During local validation the same UI runs against the mock backend
 > (`BIA_react/api.js`, served on `VITE_API_BASE=http://localhost:8787`), which

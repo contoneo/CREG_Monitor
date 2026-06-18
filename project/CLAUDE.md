@@ -19,7 +19,6 @@ lambdas/
                     #   also bundles mock_2025-12-01_2026-06-04.json (must be in the zip)
   save-config/      # POST /save-config, GET /get-config
   get-master-json/  # GET  /get-master-json
-src/api.js          # LEGACY CRA-style client (REACT_APP_API_URL) — NOT deployed
 terraform/          # modular IaC: iam, storage, email, api, scheduler, frontend
 ```
 
@@ -28,8 +27,8 @@ that `BIA_react/api.js` mocks locally — keep them in sync when the contract or
 the merge/dedup rules change.
 
 The **deployed frontend is `BIA_react/`** (built with Vite, uploaded to S3 by the
-README's deploy step). `src/api.js` here is a leftover from the original CRA-style
-design and is not used — the live app uses `BIA_react/api.client.js`.
+README's deploy step) — its client is `BIA_react/api.client.js`. (There is no
+`src/` here; the old CRA-style client was removed.)
 
 ## Commands
 

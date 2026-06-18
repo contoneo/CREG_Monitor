@@ -159,9 +159,10 @@ aws cloudfront create-invalidation \
 
 ## React Integration
 
-The frontend is **Monitor CREG**, a single React component in `creg_monitor.jsx`
-that mounts into `#root`. It talks to the API only through the four `src/api.js`
-client functions below. Behaviors worth knowing:
+The frontend is **Monitor CREG**, a single React component in
+`BIA_react/creg_monitor.jsx` that mounts into `#root`. It talks to the API only
+through the four `BIA_react/api.client.js` client functions below. Behaviors
+worth knowing:
 
 - On startup it calls `getMasterJson()` (populate the dashboard) and `getConfig()`
   (hydrate the config tab).
@@ -177,7 +178,7 @@ client functions below. Behaviors worth knowing:
 Build it and upload the output to S3 after `terraform apply` (see step 6 above).
 
 ```js
-import { runAlert, saveConfig, getConfig, getMasterJson } from './api';
+import { runAlert, saveConfig, getConfig, getMasterJson } from './api.client';
 
 // On app startup — load all accumulated data
 const master = await getMasterJson();
