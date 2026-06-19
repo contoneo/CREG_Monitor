@@ -1,0 +1,19 @@
+cd /Users/contoneo-mac/dev/BIA/project/lambdas/run-alert
+export AWS_REGION=us-east-1
+export RT=$(cd ../../terraform && terraform output -raw results_table_name)
+node --input-type=module -e '
+import { DynamoDBClient, PutItemCommand } from "@aws-sdk/client-dynamodb";
+import { marshall } from "@aws-sdk/util-dynamodb";
+import { readFileSync } from "node:fs";
+const init = JSON.parse(readFileSync("/Users/contoneo-mac/dev/BIA/BIA_react/data/master_init.json","utf8"));
+const item = { resultKey: "master", ...init, lastUpdated: new Date().toISOString() };
+const c = new DynamoDBClient({ region: process.env.AWS_REGION });
+await c.send(new PutItemCommand({ TableName: process.env.RT, Item: marshall(item, { removeUndefinedValues: true }) }));
+console.log("Reset master to master_init.json:",
+  (init.documentos||[]).length, "docs,", (init.proyectos_en_consulta||[]).length, "proyectos");
+'
+
+##Verify:
+
+API=$(cd /Users/contoneo-mac/dev/BIA/project/terraform && terraform output -raw api_gateway_url)
+curl -s "$API/get-master-json" | python3 -c "import sys,json;d=json.load(sys.stdin);print('docs:',len(d['documentos']),'proyectos:',len(d['proyectos_en_consulta']))"
