@@ -75,7 +75,9 @@ EventBridge Scheduler (cron)
 - React can pass `{ override: { Tipos, Areas, Relevancia_min, Rango } }` in body
 
 ### save-config
-- POST /save-config → writes config to DynamoDB
+- POST /save-config → writes config to DynamoDB. `recipientEmail` is **optional**
+  (defaults to `""`) — the UI auto-saves filters before an email is set; email
+  validity is enforced at send time in `run-alert`, not here.
 - GET  /get-config  → reads config from DynamoDB
 
 ### get-master-json

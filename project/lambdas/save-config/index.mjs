@@ -31,15 +31,13 @@ function corsHeaders(origin) {
 async function saveConfig(body) {
   const { recipientEmail, Tipos, Areas, Relevancia_min, calls_per_month, enabled } = body;
 
-  if (!recipientEmail) {
-    return { statusCode: 400, body: JSON.stringify({ error: "recipientEmail is required" }) };
-  }
-
+  // recipientEmail is optional here — the UI auto-saves filters before an email
+  // is set, and email validity is enforced at send time in run-alert (EMAIL_RE).
   await dynamo.send(new PutItemCommand({
     TableName: TABLE,
     Item: marshall({
       configKey:      "alert-config",
-      recipientEmail,
+      recipientEmail: recipientEmail ?? "",
       Tipos:          Tipos          ?? [],
       Areas:          Areas          ?? [],
       Relevancia_min: Relevancia_min ?? 1,

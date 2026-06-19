@@ -71,7 +71,7 @@ function CREGMonitor() {
   const [frecuencia, setFrecuencia] = useState(1);
   const [alertasEnabled, setAlertasEnabled] = useState(false);
   const [emailRecipient, setEmailRecipient] = useState("");
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
