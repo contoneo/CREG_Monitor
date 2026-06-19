@@ -111,7 +111,7 @@ terraform apply
 
 ```bash
 terraform output                              # show all
-terraform output -raw api_gateway_url         # → REACT_APP_API_URL
+terraform output -raw api_gateway_url         # → VITE_API_BASE (frontend build)
 terraform output -raw cloudfront_distribution_id
 terraform output -raw s3_bucket_name
 ```
