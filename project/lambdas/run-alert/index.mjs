@@ -305,8 +305,8 @@ export const handler = async (event) => {
     // Mock interim: read a canned Claude response from the bundled file instead
     // of calling the API. Restore the two lines below for the live call.
     //   const apiKey       = await getApiKey();
-    //   const claudeResult = await callClaude(apiKey, entrada);
-    const claudeResult = await loadMockClaude();
+    const claudeResult = await callClaude(apiKey, entrada);
+    // const claudeResult = await loadMockClaude();
 
     // Check for Claude error response
     if (claudeResult.error) {

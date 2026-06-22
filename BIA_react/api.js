@@ -72,17 +72,106 @@ async function writeJson(url, obj) {
   await writeFile(url, JSON.stringify(obj, null, 2) + "\n");
 }
 
-// Pull the structured payload out of a raw Anthropic messages response:
-// find the text block, then extract the embedded ```json {...} ``` object.
+// parseClaudeResponse is defined below, next to callClaude.
+
+// ── Public operations ────────────────────────────────────────────────────────
+
+const SYSTEM_PROMPT = `RESPONDE ÚNICAMENTE CON JSON PURO. Primer carácter: {. Último carácter: }. Sin texto antes o después del objeto JSON.
+ROL: Monitor regulatorio CREG Colombia. Solo español. Nunca inventes números de documentos.
+ENTRADA: {"Tipos":[],"Rango":["YYYY-MM-DD","YYYY-MM-DD"],"Areas":[],"Relevancia_min":1}
+Si inválido: {"error":"JSON inválido","campos_faltantes":[]}
+BÚSQUEDA: Tiempo real en creg.gov.co → gestornormativo.creg.gov.co → minenergia.gov.co → diario-oficial.vlex.com.co. Omite no verificados, derogados o fuera de filtros. Si el JSON se aproxima al límite de tokens, cierra el array y el objeto correctamente antes de truncar.
+Si no se encuentran documentos, devuelve: {"rango_de_fechas":["fecha_ini","fecha_fin"],"total_documentos":0,"fuentes_consultadas":[],"documentos":[],"proyectos_en_consulta":[]}
+SCHEMA: {"rango_de_fechas":["YYYY-MM-DD","YYYY-MM-DD"],"total_documentos":N,"fuentes_consultadas":["url"],"documentos":[{"numero_nombre":"str","fecha":"YYYY-MM-DD","tipo":"Resolución|Circular|Acuerdo","area":"str","relevancia":1,"confianza":"alta|media|baja","url_oficial":"https://","modifica_a":["str"],"descripcion":"str"}],"proyectos_en_consulta":[{"numero_nombre":"str","fecha":"YYYY-MM-DD","area":"str","url_oficial":"https://","descripcion":"str"}]}
+REGLAS: total_documentos=len(documentos). confianza: alta=URL directa, media=referencia verificada, baja=fuente secundaria.`;
+
+
+// Call the Anthropic Messages API with the regulatory-monitor system prompt and
+// the web_search tool enabled (the prompt requires real-time lookups on
+// creg.gov.co and the other official sources). web_search is a server-side tool:
+// Anthropic runs the search loop and may return stop_reason "pause_turn" if it
+// hits the per-turn iteration limit — re-send the conversation to resume.
+async function callClaude(apiKey, entrada) {
+  let messages = [{ role: "user", content: `ENTRADA: ${JSON.stringify(entrada)}` }];
+  let data;
+
+  console.log(`[callClaude] message to Anthropic: ${messages[0].content}`);
+
+  for (let i = 0; i < 5; i++) {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-opus-4-8",
+        max_tokens: 16000,
+        system: SYSTEM_PROMPT,
+        // web_search_20260209 has dynamic filtering built in (Opus 4.8); no
+        // beta header or separate code_execution tool is needed.
+        tools: [{ type: "web_search_20260209", name: "web_search" }],
+        messages,
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`Claude API error ${response.status}: ${err}`);
+    }
+
+    data = await response.json();
+    if (data.stop_reason !== "pause_turn") break;
+    // Resume the paused server-tool loop: replay the user turn + the partial
+    // assistant turn so the server picks up where it left off.
+    messages = [messages[0], { role: "assistant", content: data.content }];
+  }
+
+  return parseClaudeResponse(data);
+}
+
+// Pull the structured payload out of a raw Anthropic messages response: take the
+// LAST text block (web_search responses interleave server_tool_use / result
+// blocks, and the final JSON is the last thing the model writes), then extract
+// the embedded { ... } object.
 function parseClaudeResponse(raw) {
-  const textBlock = raw.content?.find(b => b.type === "text");
+  const textBlock = raw.content?.findLast(b => b.type === "text");
   if (!textBlock) throw new Error("No text block in response");
   const match = textBlock.text.match(/\{[\s\S]*\}/);
   if (!match) throw new Error("No JSON found in response text");
   return JSON.parse(match[0]);
 }
 
-// ── Public operations ────────────────────────────────────────────────────────
+// Node reads the key from the process environment (NOT import.meta.env, which is
+// a Vite/browser-only construct and is undefined here). Set it before running:
+//   ANTHROPIC_API_KEY=sk-ant-... node api.js
+const apiKey = process.env.ANTHROPIC_API_KEY;
+
+// Rango covers a single sweep window ending today. The window length is the
+// month's days split across calls_per_month, so e.g. 3 calls/month ≈ a 10-day
+// look-back. Mirrors buildRango in project/lambdas/run-alert/index.mjs.
+function buildRango(config) {
+  const today = new Date();
+  const callsPerMonth = config?.calls_per_month || 3;
+  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+  const intervalDays = Math.ceil(daysInMonth / callsPerMonth);
+  const fromDate = new Date(today);
+  fromDate.setDate(today.getDate() - intervalDays);
+  const fmt = (d) => d.toISOString().split("T")[0];
+  return [fmt(fromDate), fmt(today)];
+}
+
+// Build the ENTRADA payload the SYSTEM_PROMPT expects from the saved config.
+// Tipos/Areas/Relevancia_min come straight from config; Rango from buildRango.
+function buildEntrada(config) {
+  return {
+    Tipos: config?.Tipos ?? [],
+    Rango: buildRango(config),
+    Areas: config?.Areas ?? [],
+    Relevancia_min: config?.Relevancia_min ?? 1,
+  };
+}
 
 /**
  * Trigger an alert run.
@@ -96,10 +185,16 @@ function parseClaudeResponse(raw) {
  * }>}
  */
 export async function runAlert() {
-  const raw = await readJson(MOCK_FILE);
-  const parsed = parseClaudeResponse(raw);
+  if (!apiKey) {
+    throw new Error("ANTHROPIC_API_KEY is not set — export it before running (see callClaude).");
+  }
 
   const master = await readJson(MASTER_INIT_FILE, EMPTY_MASTER);
+
+  // Live Anthropic call. To fall back to the bundled mock response instead,
+  // swap the next line for: const parsed = await readJson(MOCK_FILE);
+  const config = await getConfig();
+  const parsed = await callClaude(apiKey, buildEntrada(config));
 
   const incomingDocs = parsed.documentos ?? [];
   const incomingProj = parsed.proyectos_en_consulta ?? [];
@@ -129,7 +224,7 @@ export async function runAlert() {
   console.log(`[master.json] updated — ${documentos.length} docs, ${proyectos_en_consulta.length} proyectos`);
 
   const hasNew = newItems.documentos.length + newItems.proyectos_en_consulta.length > 0;
-  const config = await getConfig();
+  // `config` was already loaded above to build the ENTRADA payload.
   // Real email sending would go here; gated on alerts enabled, new items, and a
   // valid recipient address (same rule as the production run-alert Lambda).
   const emailSent =

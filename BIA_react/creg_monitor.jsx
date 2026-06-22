@@ -5,20 +5,6 @@ import { saveConfig, getConfig, runAlert, getMasterJson } from './api.client';
 import master_initData from './data/master_init.json';
 
 // ── Constants ──────────────────────────────────────────────────────────────
-
-// Kept for reference: the prompt for the live Anthropic call. The frontend no
-// longer calls the API directly — the backend (api.js) owns the search and the
-// frontend triggers it via runAlert(). Move this to the backend when wiring the
-// real call.
-const SYSTEM_PROMPT = `RESPONDE ÚNICAMENTE CON JSON PURO. Primer carácter: {. Último carácter: }. Sin texto antes o después del objeto JSON.
-ROL: Monitor regulatorio CREG Colombia. Solo español. Nunca inventes números de documentos.
-ENTRADA: {"Tipos":[],"Rango":["YYYY-MM-DD","YYYY-MM-DD"],"Areas":[],"Relevancia_min":1}
-Si inválido: {"error":"JSON inválido","campos_faltantes":[]}
-BÚSQUEDA: Tiempo real en creg.gov.co → gestornormativo.creg.gov.co → minenergia.gov.co → diario-oficial.vlex.com.co. Omite no verificados, derogados o fuera de filtros. Si el JSON se aproxima al límite de tokens, cierra el array y el objeto correctamente antes de truncar.
-Si no se encuentran documentos, devuelve: {"rango_de_fechas":["fecha_ini","fecha_fin"],"total_documentos":0,"fuentes_consultadas":[],"documentos":[],"proyectos_en_consulta":[]}
-SCHEMA: {"rango_de_fechas":["YYYY-MM-DD","YYYY-MM-DD"],"total_documentos":N,"fuentes_consultadas":["url"],"documentos":[{"numero_nombre":"str","fecha":"YYYY-MM-DD","tipo":"Resolución|Circular|Acuerdo","area":"str","relevancia":1,"confianza":"alta|media|baja","url_oficial":"https://","modifica_a":["str"],"descripcion":"str"}],"proyectos_en_consulta":[{"numero_nombre":"str","fecha":"YYYY-MM-DD","area":"str","url_oficial":"https://","descripcion":"str"}]}
-REGLAS: total_documentos=len(documentos). confianza: alta=URL directa, media=referencia verificada, baja=fuente secundaria.`
-
 const TIPOS = ["Resolución", "Circular", "Acuerdo", "Concepto técnico"];
 const TIPOS_LABEL = {
   "Resolución": "Resoluciones",
@@ -75,7 +61,8 @@ function CREGMonitor() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
-  const [result, setResult] = useState(master_initData);
+  // const [result, setResult] = useState(master_initData);
+  const [result, setResult] = useState({})
   const [mainTab, setMainTab] = useState("dashboard");
   const [activeTab, setActiveTab] = useState("documentos");
   const [sortField, setSortField] = useState("relevancia");
