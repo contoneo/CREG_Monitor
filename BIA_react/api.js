@@ -203,18 +203,15 @@ function buildEntrada(config, rango) {
  * }>}
  */
 export async function runAlert(rango) {
-  if (!USE_MOCK && !apiKey) {
-    throw new Error("ANTHROPIC_API_KEY is not set — export it, or run with USE_MOCK=1.");
+  if (!apiKey) {
+    throw new Error("ANTHROPIC_API_KEY is not set — export it before running (see callClaude).");
   }
 
   const master = await readJson(MASTER_FILE, EMPTY_MASTER);
   const config = await getConfig();
 
-  // Live API call, or the stored mock response — interchangeable via USE_MOCK.
-  // The mock file is a raw Anthropic message, so it goes through the same parser.
-  const parsed = USE_MOCK
-    ? parseClaudeResponse(await readJson(MOCK_FILE))
-    : await callClaude(apiKey, buildEntrada(config, rango));
+  // const parsed = await readJson(MOCK_FILE);
+  const parsed = await callClaude(apiKey, buildEntrada(config, rango));
 
   const incomingDocs = parsed.documentos ?? [];
   const incomingProj = parsed.proyectos_en_consulta ?? [];
