@@ -175,6 +175,21 @@ select {
   margin-bottom: 1rem;
 }
 
+/* Search button + date-range pickers */
+.search-controls { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.date-field {
+  display: flex; flex-direction: column; gap: 4px;
+  font-size: 0.75rem; color: var(--text2);
+}
+.date-input {
+  padding: 7px 9px;
+  border: 1px solid var(--border-md);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
 /* ── JSON preview + query button ── */
 .json-preview-row { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 16px; }
 .json-preview {

@@ -15,8 +15,9 @@ Monitor CREG). Repo-wide context is in the root `CLAUDE.md`.
 
 ```
 lambdas/
-  run-alert/        # POST /run-alert — response (MOCK INTERIM: bundled file) + merge + SES
-                    #   also bundles mock_2025-12-01_2026-06-04.json (must be in the zip)
+  run-alert/        # POST /run-alert — live Claude call (web_search) + merge + SES
+                    #   also bundles mock_2025-12-01_2026-06-04.json for the stored-JSON
+                    #   fallback (must be in the zip)
   save-config/      # POST /save-config, GET /get-config
   get-master-json/  # GET  /get-master-json
 terraform/          # modular IaC: iam, storage, email, api, scheduler, frontend
@@ -43,11 +44,19 @@ for the full sequence and for building + uploading the frontend after apply.
 ## Conventions
 
 - Lambdas are **Node.js 22.x** ES modules (`index.mjs`, `export const handler`).
-- **Mock interim:** `run-alert` reads a bundled mock via `loadMockClaude()`
-  instead of calling Claude. So `TF_VAR_claude_api_key` is optional right now
-  (the variable defaults to empty) and no key is needed to deploy or run the demo.
-  Going live = swap `loadMockClaude()` → `callClaude(apiKey, entrada)` and set the
-  key. Keep the `callClaude`/`SYSTEM_PROMPT`/SSM scaffolding.
+- **Run modes — live API call vs. stored JSON:** `run-alert` has two
+  interchangeable data sources, toggled by one line in the handler:
+  - **Live (default):** `const claudeResult = await callClaude(apiKey, entrada)`
+    calls the Anthropic Messages API with the `web_search` tool (the key is read
+    from SSM via `getApiKey()`). This makes **`TF_VAR_claude_api_key` required** —
+    set it (and put it in SSM) before deploying, or live runs fail.
+  - **Stored JSON (offline/testing):** swap that line for
+    `const claudeResult = await loadMockClaude()` to replay the bundled
+    `mock_2025-12-01_2026-06-04.json` — no key, no network, deterministic. The
+    mock file must stay in the deploy zip. Keep `loadMockClaude` and the
+    `callClaude`/`buildSystemPrompt`/SSM scaffolding regardless of mode.
+  - A UI search may pass `{ Rango }` in the request body to override the date
+    window; the periodic run omits it and uses the `calls_per_month` window.
 - The Claude API key is server-side only (SSM SecureString); never put it in the
   React bundle or Lambda env vars in plaintext.
 - Email is sent only when alerts are `enabled`, there are new items, and

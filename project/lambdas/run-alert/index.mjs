@@ -2,16 +2,15 @@
  * Lambda: run-alert
  *
  * Called by:
- *   - React UI  → POST /run-alert via API Gateway (may include override ENTRADA in body)
+ *   - React UI  → POST /run-alert via API Gateway (body may include { Rango } from the date pickers)
  *   - EventBridge Scheduler → direct Lambda invoke, event = { periodic: true }
  *     (Scheduler can't POST to an HTTP endpoint; it invokes this function directly,
  *      so the payload is the raw `event`, not `event.body`.)
  *
  * Flow:
  *   1. Read config from DynamoDB (config table)
- *   2. Build ENTRADA — use saved config, override with body fields if provided
- *   3. Get the Claude response. MOCK INTERIM: reads a bundled canned response
- *      (loadMockClaude) instead of calling the API; swap to callClaude for live.
+ *   2. Build ENTRADA from saved config; a UI search may override Rango via body.Rango
+ *   3. Call Claude live (web_search enabled). loadMockClaude() is kept as an offline fallback.
  *   4. Validate response schema
  *   5. Compare with master record in DynamoDB → find new items (normalized key)
  *   6. Merge into master record (deduplicated union, fresh response wins)
@@ -97,56 +96,83 @@ function buildRango(config) {
   return [fmt(fromDate), fmt(today)];
 }
 
-function buildEntrada(config, override = {}) {
+// Assemble the ENTRADA from saved config. `rango` is the explicit [start, end]
+// from a UI search (the date pickers); when absent (the periodic job) fall back
+// to the calls_per_month window. Mirrors buildEntrada in BIA_react/api.js.
+function buildEntrada(config, rango) {
   return {
-    Tipos:         override.Tipos         ?? config.Tipos         ?? [],
-    Rango:         override.Rango         ?? buildRango(config),
-    Areas:         override.Areas         ?? config.Areas         ?? [],
-    Relevancia_min: override.Relevancia_min ?? config.Relevancia_min ?? 1,
+    Tipos:          config.Tipos          ?? [],
+    Rango:          Array.isArray(rango) && rango.length === 2 ? rango : buildRango(config),
+    Areas:          config.Areas          ?? [],
+    Relevancia_min: config.Relevancia_min ?? 1,
   };
 }
 
 
-const SYSTEM_PROMPT = `RESPONDE ÚNICAMENTE CON JSON PURO. Primer carácter: {. Último carácter: }. Sin texto antes o después del objeto JSON.
-ROL: Monitor regulatorio CREG Colombia. Solo español. Nunca inventes números de documentos.
-ENTRADA: {"Tipos":[],"Rango":["YYYY-MM-DD","YYYY-MM-DD"],"Areas":[],"Relevancia_min":1}
-Si inválido: {"error":"JSON inválido","campos_faltantes":[]}
-BÚSQUEDA: Tiempo real en creg.gov.co → gestornormativo.creg.gov.co → minenergia.gov.co → diario-oficial.vlex.com.co. Omite no verificados, derogados o fuera de filtros. Si el JSON se aproxima al límite de tokens, cierra el array y el objeto correctamente antes de truncar.
-Si no se encuentran documentos, devuelve: {"rango_de_fechas":["fecha_ini","fecha_fin"],"total_documentos":0,"fuentes_consultadas":[],"documentos":[],"proyectos_en_consulta":[]}
-SCHEMA: {"rango_de_fechas":["YYYY-MM-DD","YYYY-MM-DD"],"total_documentos":N,"fuentes_consultadas":["url"],"documentos":[{"numero_nombre":"str","fecha":"YYYY-MM-DD","tipo":"Resolución|Circular|Acuerdo","area":"str","relevancia":1,"confianza":"alta|media|baja","url_oficial":"https://","modifica_a":["str"],"descripcion":"str"}],"proyectos_en_consulta":[{"numero_nombre":"str","fecha":"YYYY-MM-DD","area":"str","url_oficial":"https://","descripcion":"str"}]}
-REGLAS: total_documentos=len(documentos). confianza: alta=URL directa, media=referencia verificada, baja=fuente secundaria.`;
+// `today` is injected so the model treats the requested Rango as current: its
+// training cutoff predates it, and without this anchor it calls the dates
+// "future", returns an error, and never searches. Mirrors BIA_react/api.js.
+function buildSystemPrompt(today) {
+  return `ROL: Monitor regulatorio de la CREG (Comisión de Regulación de Energía y Gas, Colombia). Responde solo en español. Nunca inventes números de documento ni URLs.
+CONTEXTO: Hoy es ${today}. Las fechas del Rango son reales y consultables aunque sean posteriores a tu fecha de entrenamiento; nunca las trates como "futuras" ni rechaces la ENTRADA por ese motivo.
+TAREA: Usa SIEMPRE la herramienta web_search antes de responder, en tiempo real y en este orden de prioridad: creg.gov.co → gestornormativo.creg.gov.co → minenergia.gov.co → diario-oficial.vlex.com.co. Incluye solo documentos verificados, vigentes (no derogados) y que cumplan TODOS los filtros de la ENTRADA: Tipos, Areas, Rango y relevancia ≥ Relevancia_min.
+ENTRADA (lo que recibes): {"Tipos":[],"Rango":["YYYY-MM-DD","YYYY-MM-DD"],"Areas":[],"Relevancia_min":1}
+SALIDA: responde ÚNICAMENTE un objeto JSON puro — primer carácter {, último }, sin texto, comentarios ni markdown alrededor. Reglas:
+- ENTRADA malformada o con campos faltantes → {"error":"JSON inválido","campos_faltantes":[...]}. Un Rango de fechas válidas NUNCA es causa de error.
+- Sin resultados → el ESQUEMA con arrays vacíos y total_documentos:0.
+- Cerca del límite de tokens → cierra correctamente arrays y objeto antes de truncar.
+ESQUEMA: {"rango_de_fechas":["YYYY-MM-DD","YYYY-MM-DD"],"total_documentos":N,"fuentes_consultadas":["url"],"documentos":[{"numero_nombre":"str","fecha":"YYYY-MM-DD","tipo":"Resolución|Circular|Acuerdo|Concepto técnico","area":"str","relevancia":1,"confianza":"alta|media|baja","url_oficial":"https://","modifica_a":["str"],"descripcion":"str"}],"proyectos_en_consulta":[{"numero_nombre":"str","fecha":"YYYY-MM-DD","area":"str","url_oficial":"https://","descripcion":"str"}]}
+REGLAS: total_documentos=len(documentos). relevancia = entero 1–5. confianza: alta = URL oficial directa verificada, media = referencia verificada, baja = fuente secundaria.`;
+}
 
 
+// Call the Messages API with web_search enabled and return the parsed payload.
+// web_search is a server-side tool: Anthropic runs the search loop and may stop
+// with "pause_turn" if it hits the per-turn iteration limit — re-send to resume.
 async function callClaude(apiKey, entrada) {
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 4096,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: `ENTRADA: ${JSON.stringify(entrada)}` }],
-    }),
-  });
+  let messages = [{ role: "user", content: `ENTRADA: ${JSON.stringify(entrada)}` }];
+  const system = buildSystemPrompt(new Date().toISOString().slice(0, 10));
+  let data;
 
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`Claude API error ${response.status}: ${err}`);
+  for (let i = 0; i < 5; i++) {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 16000,
+        system,
+        tools: [{ type: "web_search_20260209", name: "web_search" }], // dynamic filtering built in; no beta header needed
+        messages,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Claude API error ${response.status}: ${await response.text()}`);
+    }
+
+    data = await response.json();
+    if (data.stop_reason !== "pause_turn") break;
+    // Resume the paused server-tool loop: replay the user turn + partial assistant turn.
+    messages = [messages[0], { role: "assistant", content: data.content }];
   }
 
-  const data = await response.json();
+  if (data?.stop_reason === "pause_turn") {
+    throw new Error("Anthropic still paused (pause_turn) after 5 continuations — raise the loop bound.");
+  }
+
   return parseClaudeResponse(data);
 }
 
-// Pull the structured payload out of a raw Anthropic messages response: find the
-// text block (web_search responses put it after the tool blocks), then extract
-// the embedded { ... } JSON object. Mirrors parseClaudeResponse in BIA_react/api.js.
+// Extract the structured payload: web_search responses interleave tool blocks,
+// so take the LAST text block (the final JSON) and parse the { ... } object.
+// Mirrors parseClaudeResponse in BIA_react/api.js.
 function parseClaudeResponse(raw) {
-  const textBlock = raw.content?.find(b => b.type === "text");
+  const textBlock = raw.content?.findLast(b => b.type === "text");
   if (!textBlock) throw new Error("No text block in response");
   const match = textBlock.text.match(/\{[\s\S]*\}/);
   if (!match) throw new Error("No JSON found in response text");
@@ -298,15 +324,15 @@ export const handler = async (event) => {
       };
     }
 
-    // Build ENTRADA — React can override Tipos, Areas, Relevancia_min, Rango
-    const entrada = buildEntrada(config, body.override || {});
+    // Build ENTRADA — a UI search may override Rango (the date pickers); the
+    // periodic run omits it and uses the calls_per_month window.
+    const entrada = buildEntrada(config, body.Rango);
     console.log("ENTRADA:", JSON.stringify(entrada));
 
-    // Mock interim: read a canned Claude response from the bundled file instead
-    // of calling the API. Restore the two lines below for the live call.
-    //   const apiKey       = await getApiKey();
+    // Live Claude call. To fall back to the bundled mock, swap for:
+    //   const claudeResult = await loadMockClaude();
+    const apiKey       = await getApiKey();
     const claudeResult = await callClaude(apiKey, entrada);
-    // const claudeResult = await loadMockClaude();
 
     // Check for Claude error response
     if (claudeResult.error) {

@@ -10,10 +10,32 @@ npm run dev      # Vite dev server (http://localhost:5173)
 npm run backend  # Local mock backend HTTP server (node api.js, http://localhost:8787)
 npm run build    # Production build (dist/)
 npm run lint     # ESLint
-node api.js test # One-shot: run the mock alert once and print the result
+node api.js test # One-shot: run one alert and print the result
+
+# Live mode needs the key in the environment:
+ANTHROPIC_API_KEY=sk-ant-... npm run backend
 ```
 
 There is no test suite. Run `dev` and `backend` together during development.
+
+## Run modes — live API call vs. stored JSON
+
+`runAlert` in `api.js` supports two interchangeable data sources, toggled by one
+line:
+
+- **Live (default):** `callClaude(apiKey, …)` calls the Anthropic Messages API
+  with the `web_search` tool and returns real, current CREG documents. Requires
+  `ANTHROPIC_API_KEY` in the environment (`runAlert` throws a clear error if it's
+  unset). Each run hits the network and bills tokens. The two `[callClaude]`
+  request/response logs print on the backend terminal for debugging.
+- **Stored JSON (offline/testing):** swap the live line for
+  `const parsed = await readJson(MOCK_FILE)` to replay the bundled
+  `data/mock_*.json` instead — no key, no network, deterministic output. Use it
+  to exercise the merge/dedup/UI flow without spending tokens.
+
+Either source produces the same parsed shape, is merged into `data/master.json`
+(incoming wins on dupes), and returns the same `{ newItems, emailSent }`, so the
+rest of the app behaves identically.
 
 ## Project overview
 
@@ -23,9 +45,10 @@ filters (document types, areas, minimum relevance, alert email/frequency) and
 view an accumulating list of regulatory documents and projects-in-consultation.
 
 The app does **not** call the Anthropic API from the browser. The frontend talks
-only to a backend over four HTTP endpoints; the backend owns the (eventual)
-Claude search. Today that backend is a **local mock** (`api.js`) that serves
-canned data so the full flow can be validated before wiring the live call.
+only to a local backend over four HTTP endpoints; the backend (`api.js`) owns the
+Claude search. `api.js` runs in either of two modes (see **Run modes** above): a
+**live** Anthropic call (`web_search`) by default, or a **stored JSON** replay
+for offline/deterministic testing.
 
 ## Architecture
 
@@ -39,14 +62,17 @@ canned data so the full flow can be validated before wiring the live call.
   time — otherwise it uses an empty (same-origin) base and logs an error rather
   than silently calling localhost. Vite only reads `VITE_*` vars, and the build
   output is `dist/` (see `project/README.md` for the deploy command).
-- **Mock backend** — `api.js`: a Node HTTP server (port `8787`) implementing the
-  four endpoints from local JSON in `data/`. `node api.js test` runs one alert.
+- **Backend** — `api.js`: a Node HTTP server (port `8787`) implementing the four
+  endpoints. The config/master endpoints read/write JSON in `data/`; `run-alert`
+  calls Claude live (or replays a stored JSON — see **Run modes**).
+  `node api.js test` runs one alert.
 
 ## HTTP contract (mirrors the AWS Lambdas in `project/`)
 
-- `POST /run-alert` → reads a mock Claude response, merges it into the
-  `master_init.json` baseline, writes `data/master.json`, returns
-  `{ newItems: { documentos, proyectos_en_consulta }, emailSent }`.
+- `POST /run-alert` → gets the Claude response (live call, or stored JSON in
+  testing mode), merges it into `data/master.json`, writes it back, returns
+  `{ newItems: { documentos, proyectos_en_consulta }, emailSent }`. An optional
+  `{ Rango }` in the request body overrides the date window (the UI date pickers).
 - `POST /save-config` → writes `data/config.json`.
 - `GET  /get-config` → reads `data/config.json` (or `null`).
 - `GET  /get-master-json` → reads `data/master.json`.
@@ -69,12 +95,13 @@ backend agree). Both `saveConfig` and `runAlert` log changes to the console
   differs for new items vs none, and reports whether the alert email was sent. An
   `AbortController` (`abortRef`) backs the "Detener" button.
 
-## Mock-interim scaffolding — do not remove
+## Stored-JSON scaffolding — do not remove
 
-`SYSTEM_PROMPT` in `creg_monitor.jsx` and the mock plumbing are kept for the
-upcoming live Anthropic call (which will live in the backend's `runAlert`). The
-unused-var lint on `SYSTEM_PROMPT` is acceptable; do not delete it or add an
-eslint-disable.
+The stored-JSON path is a supported testing mode, not dead code: keep
+`MOCK_FILE`, the `readJson` fallback in `runAlert`, and the bundled
+`data/mock_*.json`. The unused `SYSTEM_PROMPT` const in `creg_monitor.jsx` is
+also kept (the live prompt now lives in `api.js` `buildSystemPrompt`); its
+unused-var lint is acceptable — do not delete it or add an eslint-disable.
 
 ## Not tracked in git
 

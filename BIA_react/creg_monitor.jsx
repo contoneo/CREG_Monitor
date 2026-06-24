@@ -46,6 +46,19 @@ function persistConfig({ tipos, areas, relevanciaMin, frecuencia, alertasEnabled
   }).catch(() => {});
 }
 
+// Default query window from the configured frequency: the month's days split
+// across calls_per_month (e.g. 3/month ≈ a 10-day look-back), ending today.
+// Mirrors buildRango in api.js — only used to seed the date pickers.
+function buildRango(callsPerMonth = 1) {
+  const today = new Date();
+  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+  const intervalDays = Math.ceil(daysInMonth / (callsPerMonth || 1));
+  const from = new Date(today);
+  from.setDate(today.getDate() - intervalDays);
+  const fmt = (d) => d.toISOString().slice(0, 10);
+  return [fmt(from), fmt(today)];
+}
+
 // ── Main component ─────────────────────────────────────────────────────────
 
 function CREGMonitor() {
@@ -57,6 +70,9 @@ function CREGMonitor() {
   const [frecuencia, setFrecuencia] = useState(1);
   const [alertasEnabled, setAlertasEnabled] = useState(false);
   const [emailRecipient, setEmailRecipient] = useState("");
+  // Query date range — seeded from buildRango (default), user-overridable, sent to runAlert. Not persisted.
+  const [fechaInicio, setFechaInicio] = useState(() => buildRango()[0]);
+  const [fechaFin, setFechaFin] = useState(() => buildRango()[1]);
   const [darkMode, setDarkMode] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -86,6 +102,10 @@ function CREGMonitor() {
           setFrecuencia(cfg.calls_per_month ?? 1);
           setAlertasEnabled(cfg.enabled ?? false);
           setEmailRecipient(cfg.recipientEmail ?? "");
+          // Seed the default pickers from the saved frequency's window.
+          const [ini, fin] = buildRango(cfg.calls_per_month ?? 1);
+          setFechaInicio(ini);
+          setFechaFin(fin);
         }
       })
       .finally(() => { configInitialized.current = true; });
@@ -119,13 +139,17 @@ function CREGMonitor() {
       setError("Selecciona al menos un tipo y un área.");
       return;
     }
+    if (!fechaInicio || !fechaFin || fechaInicio > fechaFin) {
+      setError("Selecciona un rango de fechas válido (Desde ≤ Hasta).");
+      return;
+    }
     setLoading(true);
     setError(null);
     setNotice(null);
     abortRef.current = new AbortController();
 
     try {
-      const { newItems, emailSent } = await runAlert(abortRef.current.signal);
+      const { newItems, emailSent } = await runAlert(abortRef.current.signal, [fechaInicio, fechaFin]);
       const hasNew =
         (newItems?.documentos?.length ?? 0) + (newItems?.proyectos_en_consulta?.length ?? 0) > 0;
       // Always refresh from the backend master so the table reflects stored state.
@@ -217,11 +241,23 @@ function CREGMonitor() {
       {/* ══ Dashboard panel ══ */}
       <div id="tab-dashboard" className={`section${mainTab === 'dashboard' ? ' active' : ''}`}>
         <div className="row-apart">
-          <button className={`btn btn-primary${loading ? ' loading' : ''}`} id="btn-scan"
-            disabled={!tipos.length || !areas.length}
-            onClick={loading ? handleStop : handleSearch}>
-            {loading ? "⏹ Detener" : "⟳ Buscar ahora"}
-          </button>
+          <div className="search-controls">
+            <button className={`btn btn-primary${loading ? ' loading' : ''}`} id="btn-scan"
+              disabled={!tipos.length || !areas.length}
+              onClick={loading ? handleStop : handleSearch}>
+              {loading ? "⏹ Detener" : "⟳ Buscar ahora"}
+            </button>
+            <label className="date-field">
+              <span>Desde</span>
+              <input type="date" className="date-input" value={fechaInicio} max={fechaFin}
+                disabled={loading} onChange={e => setFechaInicio(e.target.value)} />
+            </label>
+            <label className="date-field">
+              <span>Hasta</span>
+              <input type="date" className="date-input" value={fechaFin} min={fechaInicio}
+                disabled={loading} onChange={e => setFechaFin(e.target.value)} />
+            </label>
+          </div>
           {error && <div className="error-msg">{error}</div>}
           {notice && <div className="info-msg">{notice}</div>}
         </div>

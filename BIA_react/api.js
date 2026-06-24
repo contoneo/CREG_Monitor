@@ -171,11 +171,13 @@ function buildRango(config) {
   return [fmt(fromDate), fmt(today)];
 }
 
-// Assemble the ENTRADA from saved config (Tipos/Areas/Relevancia_min direct, Rango computed).
-function buildEntrada(config) {
+// Assemble the ENTRADA from saved config. `rango` is the explicit [start, end]
+// passed by a UI search (the date pickers); when absent (e.g. the periodic job),
+// fall back to the calls_per_month window from buildRango.
+function buildEntrada(config, rango) {
   return {
     Tipos: config?.Tipos ?? [],
-    Rango: buildRango(config),
+    Rango: Array.isArray(rango) && rango.length === 2 ? rango : buildRango(config),
     Areas: config?.Areas ?? [],
     Relevancia_min: config?.Relevancia_min ?? 1,
   };
@@ -188,12 +190,14 @@ function buildEntrada(config) {
  * into master.json (incoming wins on dupes), and report the items not previously
  * seen. emailSent is a placeholder for the production SES send.
  *
+ * @param {string[]} [rango] Optional ["YYYY-MM-DD","YYYY-MM-DD"] override from a
+ *   UI search; omitted by the periodic job, which uses the buildRango window.
  * @returns {Promise<{
  *   newItems: { documentos: object[], proyectos_en_consulta: object[] },
  *   emailSent: boolean
  * }>}
  */
-export async function runAlert() {
+export async function runAlert(rango) {
   if (!apiKey) {
     throw new Error("ANTHROPIC_API_KEY is not set — export it before running (see callClaude).");
   }
@@ -202,7 +206,7 @@ export async function runAlert() {
   const config = await getConfig();
 
   // const parsed = await readJson(MOCK_FILE);
-  const parsed = await callClaude(apiKey, buildEntrada(config));
+  const parsed = await callClaude(apiKey, buildEntrada(config, rango));
 
   const incomingDocs = parsed.documentos ?? [];
   const incomingProj = parsed.proyectos_en_consulta ?? [];
@@ -302,7 +306,8 @@ function startServer(port = process.env.PORT || 8787) {
     const { pathname } = new URL(req.url, "http://localhost");
     try {
       if (req.method === "POST" && pathname === "/run-alert") {
-        return send(res, 200, await runAlert());
+        const { Rango } = await readBody(req);   // optional [start, end] from the UI pickers
+        return send(res, 200, await runAlert(Rango));
       }
       if (req.method === "POST" && pathname === "/save-config") {
         return send(res, 200, await saveConfig(await readBody(req)));

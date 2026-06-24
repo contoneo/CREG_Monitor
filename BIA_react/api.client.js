@@ -22,8 +22,14 @@ async function request(path, options = {}) {
   return res.json();
 }
 
-export async function runAlert(signal) {
-  return request("/run-alert", { method: "POST", signal });
+// `rango` is an optional ["YYYY-MM-DD","YYYY-MM-DD"] override from the UI date
+// pickers; omit it and the backend uses its calls_per_month window.
+export async function runAlert(signal, rango) {
+  return request("/run-alert", {
+    method: "POST",
+    signal,
+    body: rango ? JSON.stringify({ Rango: rango }) : undefined,
+  });
 }
 
 export async function saveConfig(config) {
