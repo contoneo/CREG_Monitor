@@ -1,6 +1,6 @@
 import { Ollama } from 'ollama';
 
-const client = new Ollama({ fetch: (url, opts) => fetch(url, { ...opts, signal: AbortSignal.timeout(120_000) }) });
+const client = new Ollama({ fetch: (url, opts) => fetch(url, { ...opts, signal: AbortSignal.timeout(300_000) }) });
 
 const OLLAMA_API_KEY = process.env.OLLAMA_API_KEY;
 if (!OLLAMA_API_KEY) throw new Error("OLLAMA_API_KEY not set");
@@ -33,7 +33,7 @@ let messages = [{ role: "user", content: "Busca la última resolución de la CRE
 console.log("Calling qwen3:32b (may take 20-30s on first load)...");
 
 for (let i = 0; i < 5; i++) {
-  const res = await client.chat({ model: "qwen3:32b", messages, tools });
+  const res = await client.chat({ model: "qwen3:32b", messages, tools, think: false });
   messages.push(res.message);
   const calls = res.message.tool_calls ?? [];
   if (calls.length === 0) {
@@ -43,7 +43,12 @@ for (let i = 0; i < 5; i++) {
   for (const c of calls) {
     console.log(`[tool call] web_search("${c.function.arguments.query}")`);
     const out = await webSearch(c.function.arguments.query);
-    console.log(`[tool result] ${out.results?.length ?? 0} results`);
-    messages.push({ role: "tool", content: JSON.stringify(out), name: c.function.name });
+    const trimmed = (out.results ?? []).map(r => ({
+      title: r.title,
+      url: r.url,
+      content: (r.content ?? "").slice(0, 800),
+    }));
+    console.log(`[tool result] ${trimmed.length} results, feeding back to model...`);
+    messages.push({ role: "tool", content: JSON.stringify(trimmed), name: c.function.name });
   }
 }
