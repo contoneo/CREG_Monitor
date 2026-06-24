@@ -10,9 +10,10 @@ small **local mock backend** (`api.js`) used to validate the end-to-end flow
 without AWS. The production deployment of this app lives in [`../project/`](../project)
 (S3 + CloudFront + API Gateway + Lambda + DynamoDB + SES).
 
-> **Mock interim:** the app runs on canned data — `api.js`'s `runAlert()` reads a
-> mock JSON file instead of calling Anthropic. The live-call scaffolding
-> (`SYSTEM_PROMPT`) is kept on purpose; don't remove it.
+> **Run modes:** `api.js`'s `runAlert()` calls Anthropic live by default
+> (Messages API + `web_search`); set `USE_MOCK=1` to replay a bundled mock JSON
+> instead (no key, no network). The two are interchangeable — see
+> `CLAUDE.md` → Run modes. Live mode needs `ANTHROPIC_API_KEY` in the environment.
 
 ## Prerequisites
 
@@ -78,9 +79,10 @@ the recipient input).
 
 ## Data files (`data/`, gitignored)
 
-Local-only, not committed: `master_init.json` (seed/baseline) and
-`mock_2025-12-01_2026-06-04.json` (the canned response) are used by the app;
-`config.json` and `master.json` are runtime state written by the backend.
+Local-only, not committed: `master_init.json` (build-time UI seed) and
+`mock_2025-12-01_2026-06-04.json` (the stored response replayed when `USE_MOCK=1`,
+a raw Anthropic message) are used by the app; `config.json` and `master.json` are
+runtime state written by the backend.
 
 ## Deploying
 

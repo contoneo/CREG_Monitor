@@ -25,16 +25,19 @@ is the **local mock** implementation of that contract from JSON files;
 `project/lambdas/*` is the **AWS** implementation. Keep the two in sync when the
 contract or the dedup/merge rules change.
 
-## Current phase — mock interim
+## Current phase — live, with a mock fallback
 
-The app runs on **mock data** end to end while the behavior is validated; the
-real Anthropic call comes later. Today **both** backends serve a canned response
-instead of calling the API:
-- `BIA_react/api.js` `runAlert()` reads a mock JSON file.
-- `project/lambdas/run-alert` reads a **bundled** mock file via `loadMockClaude()`
-  (the `callClaude` + `SYSTEM_PROMPT` code is present but not called).
+Both backends call the **live** Anthropic API by default (the Messages API with
+the `web_search` tool), and both keep an **interchangeable** stored-JSON mock for
+offline/deterministic testing, selected by the `USE_MOCK` env var (no code edits):
 
-Going live = swapping `loadMockClaude()` back to `callClaude(apiKey, entrada)` in
-the Lambda (and the equivalent in `api.js`), then setting `TF_VAR_claude_api_key`.
-Keep the live-call scaffolding (`SYSTEM_PROMPT`, `callClaude`, the SSM key
-plumbing) — do **not** remove it as "dead code."
+- `BIA_react/api.js` `runAlert()` — live `callClaude(...)`, or `parseClaudeResponse`
+  of `data/mock_*.json` when `USE_MOCK=1`.
+- `project/lambdas/run-alert` — live `callClaude(await getApiKey(), entrada)`, or
+  bundled `loadMockClaude()` when `USE_MOCK=1`.
+
+Because live is the default, **the API key is required**: `ANTHROPIC_API_KEY`
+locally, `TF_VAR_claude_api_key` (→ SSM) for AWS. Keep the mock scaffolding
+(`loadMockClaude`/`MOCK_FILE`, the bundled mock JSON) and the live-call plumbing
+(`buildSystemPrompt`, `callClaude`, SSM) — both modes rely on them; do **not**
+remove either as "dead code."

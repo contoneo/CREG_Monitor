@@ -4,12 +4,13 @@ This document summarizes all architectural decisions made during the initial
 design phase. It is intended to be read by Claude Code to provide full context
 for continuing development without needing the original conversation.
 
-> **Current phase — mock interim.** The `run-alert` Lambda does not call Claude
-> yet; it reads a bundled canned response via `loadMockClaude()`. `callClaude` +
-> `SYSTEM_PROMPT` + the SSM-key plumbing are kept as scaffolding. Going live =
-> swap `loadMockClaude()` → `callClaude(apiKey, entrada)` and set
-> `TF_VAR_claude_api_key`. The design below is the full target; mock-specific
-> notes are called out inline.
+> **Current phase — live, with a mock fallback.** The `run-alert` Lambda calls
+> Claude live by default (Messages API + `web_search` tool, key from SSM). The
+> bundled `loadMockClaude()` mock is an **interchangeable** offline fallback,
+> selected by the `USE_MOCK` env var (no code edits). Because live is the default,
+> `TF_VAR_claude_api_key` is **required** (set `USE_MOCK=1` to deploy/run without a
+> key). Keep both the mock scaffolding and the `callClaude`/`buildSystemPrompt`/SSM
+> plumbing. Mock-specific notes are called out inline below.
 
 ---
 
@@ -17,8 +18,8 @@ for continuing development without needing the original conversation.
 
 A React web application that:
 1. Calls the Anthropic Claude API (server-side via Lambda) to retrieve structured
-   regulatory document data based on configurable filters. *(Mock interim: a
-   bundled canned response stands in for the live call.)*
+   regulatory document data based on configurable filters. *(`USE_MOCK=1` replays
+   a bundled response instead, for offline testing.)*
 2. Stores the accumulated results in a single DynamoDB "master record" that is
    the union of all API responses, deduplicated by `numero_nombre`.
 3. Sends a notification email via SES when new regulatory documents or projects
@@ -57,8 +58,8 @@ EventBridge Scheduler (cron)
 - Triggered by: API Gateway (React) and EventBridge Scheduler
 - Reads config from DynamoDB config table
 - Builds ENTRADA from config + computed Rango dates
-- Gets the structured response. **Mock interim:** `loadMockClaude()` reads a
-  bundled file; the live path is `callClaude` (system prompt, key from SSM)
+- Gets the structured response — live `callClaude` (system prompt, `web_search`,
+  key from SSM) by default, or bundled `loadMockClaude()` when `USE_MOCK=1`
 - Validates response against schema
 - Compares with the master record → finds new items by **normalized**
   `numero_nombre`
@@ -238,9 +239,9 @@ export TF_VAR_sender_email="..."            # → Lambda env var + SES identity
 ```
 Non-secret config goes in `terraform/terraform.tfvars` (safe to commit).
 
-> **Mock interim:** `claude_api_key` now defaults to empty, so it is **optional**
-> while `run-alert` serves the mock — you can deploy with no key. `sender_email`
-> is still required (SES identity). Set `claude_api_key` again when going live.
+> **API key:** live is the default, so `claude_api_key` is **required** (it's read
+> from SSM by `run-alert`). It's optional only if you set the Lambda's `USE_MOCK=1`
+> to serve the bundled mock. `sender_email` is always required (SES identity).
 
 ---
 
@@ -318,7 +319,8 @@ ignored). Set it to the `api_gateway_url` output **at build time**, build to
    before upload: `grep -c -F 'localhost:8787' dist/assets/*.js` → `0`. After
    `aws s3 sync` + CloudFront invalidation, hard-reload; the hashed JS filename
    should change (if not, you're seeing a cached object).
-7. **run-alert mock file must be bundled** — `loadMockClaude()` reads
-   `mock_2025-12-01_2026-06-04.json` from the function dir. It's zipped by the
-   `archive_file` in `modules/api`; if it's missing from the zip the Lambda 500s
+7. **run-alert mock file must be bundled** — the `USE_MOCK=1` path
+   (`loadMockClaude()`) reads `mock_2025-12-01_2026-06-04.json` from the function
+   dir. It's zipped by the `archive_file` in `modules/api`; if it's missing from
+   the zip, `USE_MOCK` runs 500
    with `ENOENT`. `terraform apply` repackages on source change.

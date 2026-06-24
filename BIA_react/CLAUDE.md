@@ -14,28 +14,30 @@ node api.js test # One-shot: run one alert and print the result
 
 # Live mode needs the key in the environment:
 ANTHROPIC_API_KEY=sk-ant-... npm run backend
+# Mock mode needs nothing (replays a stored response):
+USE_MOCK=1 npm run backend
 ```
 
 There is no test suite. Run `dev` and `backend` together during development.
 
 ## Run modes — live API call vs. stored JSON
 
-`runAlert` in `api.js` supports two interchangeable data sources, toggled by one
-line:
+`runAlert` in `api.js` has two **interchangeable** data sources, selected at
+runtime by the `USE_MOCK` env var (no code edits):
 
 - **Live (default):** `callClaude(apiKey, …)` calls the Anthropic Messages API
   with the `web_search` tool and returns real, current CREG documents. Requires
-  `ANTHROPIC_API_KEY` in the environment (`runAlert` throws a clear error if it's
-  unset). Each run hits the network and bills tokens. The two `[callClaude]`
-  request/response logs print on the backend terminal for debugging.
-- **Stored JSON (offline/testing):** swap the live line for
-  `const parsed = await readJson(MOCK_FILE)` to replay the bundled
-  `data/mock_*.json` instead — no key, no network, deterministic output. Use it
-  to exercise the merge/dedup/UI flow without spending tokens.
+  `ANTHROPIC_API_KEY` (`runAlert` throws a clear error if it's unset unless
+  `USE_MOCK=1`). Each run hits the network and bills tokens; the two
+  `[callClaude]` request/response logs print on the backend terminal.
+- **Mock (`USE_MOCK=1`):** replays the bundled `data/mock_*.json` — no key, no
+  network, deterministic. The mock file is a **raw Anthropic message**, so it
+  goes through the same `parseClaudeResponse`, yielding the identical shape.
 
-Either source produces the same parsed shape, is merged into `data/master.json`
-(incoming wins on dupes), and returns the same `{ newItems, emailSent }`, so the
-rest of the app behaves identically.
+Either source produces the same parsed `{ documentos, proyectos_en_consulta, … }`,
+is merged into `data/master.json` (incoming wins on dupes), and returns the same
+`{ newItems, emailSent }` — so the rest of the app behaves identically. The AWS
+`run-alert` Lambda mirrors this exact toggle (also `USE_MOCK`).
 
 ## Project overview
 
@@ -85,15 +87,21 @@ backend agree). Both `saveConfig` and `runAlert` log changes to the console
 ## State & data flow (`creg_monitor.jsx`)
 
 - Seeds `result` from `data/master_init.json` (imported at build) so the UI is
-  never empty; on mount it also calls `getMasterJson()` and `getConfig()`.
+  never empty at startup; on mount it also calls `getMasterJson()` and
+  `getConfig()`. **Testing override:** swap the `useState(master_initData)` seed
+  for `useState({})` to see the empty-start behavior (the line is commented right
+  beside it in `creg_monitor.jsx`).
 - **Config auto-save**: a debounced (~600 ms) effect persists any config change
   via `saveConfig()`; a `configInitialized` ref prevents saving during the
-  initial load.
-- **Search** ("Buscar ahora"): `handleSearch` calls `runAlert(signal)`, then
-  **always** re-fetches the master with `getMasterJson()` and refreshes the table
-  (so it reflects stored state even when nothing new was found). The notice
-  differs for new items vs none, and reports whether the alert email was sent. An
-  `AbortController` (`abortRef`) backs the "Detener" button.
+  initial load. The query **date range is not persisted** — see Search.
+- **Search** ("Buscar ahora"): `handleSearch` calls
+  `runAlert(signal, [fechaInicio, fechaFin])`, passing the date-picker range as a
+  per-request override (`{ Rango }`); it then **always** re-fetches the master
+  with `getMasterJson()` and refreshes the table (so it reflects stored state
+  even when nothing new was found). The pickers default from a client-side
+  `buildRango` (the `calls_per_month` window) and are user-overridable. The
+  notice differs for new items vs none and reports whether the alert email was
+  sent. An `AbortController` (`abortRef`) backs the "Detener" button.
 
 ## Stored-JSON scaffolding — do not remove
 

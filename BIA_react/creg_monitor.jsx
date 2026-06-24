@@ -77,8 +77,11 @@ function CREGMonitor() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
-  // const [result, setResult] = useState(master_initData);
-  const [result, setResult] = useState({})
+  // Load the saved seed so the UI is never empty at startup (the mount effect
+  // below then refreshes from the backend master). For testing an empty start,
+  // swap to the commented line.
+  const [result, setResult] = useState(master_initData);
+  // const [result, setResult] = useState({});  // testing: start with no data
   const [mainTab, setMainTab] = useState("dashboard");
   const [activeTab, setActiveTab] = useState("documentos");
   const [sortField, setSortField] = useState("relevancia");

@@ -80,6 +80,11 @@ async function writeJson(url, obj) {
 // browser-only). Run as: ANTHROPIC_API_KEY=sk-ant-... node api.js
 const apiKey = process.env.ANTHROPIC_API_KEY;
 
+// Data-source toggle. Live Anthropic call by default; `USE_MOCK=1 node api.js`
+// replays the bundled data/mock_*.json offline (no key, no network). The two are
+// fully interchangeable — both yield the same parsed { documentos, proyectos… }.
+const USE_MOCK = process.env.USE_MOCK === "1";
+
 // `today` is injected so the model treats the requested Rango as current: its
 // training cutoff predates it, and without this anchor it calls the dates
 // "future", returns an error, and never searches.
@@ -198,15 +203,18 @@ function buildEntrada(config, rango) {
  * }>}
  */
 export async function runAlert(rango) {
-  if (!apiKey) {
-    throw new Error("ANTHROPIC_API_KEY is not set — export it before running (see callClaude).");
+  if (!USE_MOCK && !apiKey) {
+    throw new Error("ANTHROPIC_API_KEY is not set — export it, or run with USE_MOCK=1.");
   }
 
   const master = await readJson(MASTER_FILE, EMPTY_MASTER);
   const config = await getConfig();
 
-  // const parsed = await readJson(MOCK_FILE);
-  const parsed = await callClaude(apiKey, buildEntrada(config, rango));
+  // Live API call, or the stored mock response — interchangeable via USE_MOCK.
+  // The mock file is a raw Anthropic message, so it goes through the same parser.
+  const parsed = USE_MOCK
+    ? parseClaudeResponse(await readJson(MOCK_FILE))
+    : await callClaude(apiKey, buildEntrada(config, rango));
 
   const incomingDocs = parsed.documentos ?? [];
   const incomingProj = parsed.proyectos_en_consulta ?? [];

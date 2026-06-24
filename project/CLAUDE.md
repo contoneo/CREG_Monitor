@@ -45,15 +45,16 @@ for the full sequence and for building + uploading the frontend after apply.
 
 - Lambdas are **Node.js 22.x** ES modules (`index.mjs`, `export const handler`).
 - **Run modes — live API call vs. stored JSON:** `run-alert` has two
-  interchangeable data sources, toggled by one line in the handler:
-  - **Live (default):** `const claudeResult = await callClaude(apiKey, entrada)`
-    calls the Anthropic Messages API with the `web_search` tool (the key is read
-    from SSM via `getApiKey()`). This makes **`TF_VAR_claude_api_key` required** —
-    set it (and put it in SSM) before deploying, or live runs fail.
-  - **Stored JSON (offline/testing):** swap that line for
-    `const claudeResult = await loadMockClaude()` to replay the bundled
-    `mock_2025-12-01_2026-06-04.json` — no key, no network, deterministic. The
-    mock file must stay in the deploy zip. Keep `loadMockClaude` and the
+  **interchangeable** data sources, selected by the `USE_MOCK` env var on the
+  Lambda (no code edits — mirrors `BIA_react/api.js`):
+  - **Live (default, `USE_MOCK` unset):** `callClaude(await getApiKey(), entrada)`
+    calls the Anthropic Messages API with the `web_search` tool (key from SSM).
+    This makes **`TF_VAR_claude_api_key` required** — set it (and put it in SSM)
+    before deploying, or live runs fail.
+  - **Mock (`USE_MOCK=1`):** `loadMockClaude()` replays the bundled
+    `mock_2025-12-01_2026-06-04.json` (a raw Anthropic message, run through
+    `parseClaudeResponse`) — no key, no network, deterministic. The mock file
+    must stay in the deploy zip. Keep `loadMockClaude` and the
     `callClaude`/`buildSystemPrompt`/SSM scaffolding regardless of mode.
   - A UI search may pass `{ Rango }` in the request body to override the date
     window; the periodic run omits it and uses the `calls_per_month` window.

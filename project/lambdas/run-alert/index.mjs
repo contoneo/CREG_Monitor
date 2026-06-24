@@ -38,6 +38,7 @@ const CONFIG_TABLE = process.env.CONFIG_TABLE;
 const RESULTS_TABLE = process.env.RESULTS_TABLE;
 const SENDER_EMAIL = process.env.SENDER_EMAIL;
 const SSM_PATH     = process.env.CLAUDE_API_KEY_SSM_PATH;
+const USE_MOCK     = process.env.USE_MOCK === "1";  // replay bundled mock instead of calling Claude
 
 const ssm    = new SSMClient({ region });
 const dynamo = new DynamoDBClient({ region });
@@ -329,10 +330,11 @@ export const handler = async (event) => {
     const entrada = buildEntrada(config, body.Rango);
     console.log("ENTRADA:", JSON.stringify(entrada));
 
-    // Live Claude call. To fall back to the bundled mock, swap for:
-    //   const claudeResult = await loadMockClaude();
-    const apiKey       = await getApiKey();
-    const claudeResult = await callClaude(apiKey, entrada);
+    // Data source — live Claude call or the bundled mock, interchangeable via the
+    // USE_MOCK env var on the Lambda. loadMockClaude needs no key (no SSM read).
+    const claudeResult = USE_MOCK
+      ? await loadMockClaude()
+      : await callClaude(await getApiKey(), entrada);
 
     // Check for Claude error response
     if (claudeResult.error) {
