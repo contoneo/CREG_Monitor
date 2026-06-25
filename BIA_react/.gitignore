@@ -3,3 +3,4 @@ grounding_data/
 node_modules/
 .env.production
 data/
+tmp/

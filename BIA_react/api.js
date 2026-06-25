@@ -3,10 +3,19 @@
 //
 // Persists two files in ./data:
 //   - config.json  periodic-alert configuration
-//   - master.json  accumulating union of all parsed Claude responses (powers the UI)
+//   - master.json  accumulating union of all provider responses (powers the UI)
+//
+// Provider logic lives in ./providers/:
+//   - providers/shared.js   buildSystemPrompt, extractJson (used by all providers)
+//   - providers/claude.js   callClaude — Anthropic Messages API + server-side web_search
+//   - providers/ollama.js   callOllama — local qwen3:32b + Ollama hosted web_search
+// Select provider at runtime with API_PROVIDER=ollama (default: claude).
 
 import { readFile, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
+
+import * as claude from "./providers/claude.js";
+import * as ollama from "./providers/ollama.js";
 
 const DATA_DIR = new URL("./data/", import.meta.url);
 const CONFIG_FILE = new URL("config.json", DATA_DIR);
@@ -74,91 +83,26 @@ async function writeJson(url, obj) {
   await writeFile(url, JSON.stringify(obj, null, 2) + "\n");
 }
 
-// ── Anthropic client ─────────────────────────────────────────────────────────
+// ── Provider dispatch ────────────────────────────────────────────────────────
 
-// Node reads the key from the environment (NOT import.meta.env — that's Vite/
-// browser-only). Run as: ANTHROPIC_API_KEY=sk-ant-... node api.js
-const apiKey = process.env.ANTHROPIC_API_KEY;
+// Provider toggle. "claude" (default) calls the Anthropic Messages API with its
+// server-side web_search tool; "ollama" runs a local model and drives Ollama's
+// hosted web_search tool from a manual loop. Each provider's call logic, helpers,
+// and own env key live in ./providers/<name>.js. Select with API_PROVIDER=ollama.
+//   ANTHROPIC_API_KEY=sk-ant-...               node api.js
+//   API_PROVIDER=ollama OLLAMA_API_KEY=...     node api.js
+const PROVIDER = process.env.API_PROVIDER === "ollama" ? "ollama" : "claude";
+const apiKey = PROVIDER === "ollama" ? ollama.apiKey : claude.apiKey;
 
-// Data-source toggle. Live Anthropic call by default; `USE_MOCK=1 node api.js`
+// Data-source toggle. Live provider call by default; `USE_MOCK=1 node api.js`
 // replays the bundled data/mock_*.json offline (no key, no network). The two are
 // fully interchangeable — both yield the same parsed { documentos, proyectos… }.
 const USE_MOCK = process.env.USE_MOCK === "1";
 
-// `today` is injected so the model treats the requested Rango as current: its
-// training cutoff predates it, and without this anchor it calls the dates
-// "future", returns an error, and never searches.
-function buildSystemPrompt(today) {
-  return `ROL: Monitor regulatorio de la CREG (Comisión de Regulación de Energía y Gas, Colombia). Responde solo en español. Nunca inventes números de documento ni URLs.
-CONTEXTO: Hoy es ${today}. Las fechas del Rango son reales y consultables aunque sean posteriores a tu fecha de entrenamiento; nunca las trates como "futuras" ni rechaces la ENTRADA por ese motivo.
-TAREA: Usa SIEMPRE la herramienta web_search antes de responder, en tiempo real y en este orden de prioridad: creg.gov.co → gestornormativo.creg.gov.co → minenergia.gov.co → diario-oficial.vlex.com.co. Incluye solo documentos verificados, vigentes (no derogados) y que cumplan TODOS los filtros de la ENTRADA: Tipos, Areas, Rango y relevancia ≥ Relevancia_min.
-ENTRADA (lo que recibes): {"Tipos":[],"Rango":["YYYY-MM-DD","YYYY-MM-DD"],"Areas":[],"Relevancia_min":1}
-SALIDA: responde ÚNICAMENTE un objeto JSON puro — primer carácter {, último }, sin texto, comentarios ni markdown alrededor. Reglas:
-- ENTRADA malformada o con campos faltantes → {"error":"JSON inválido","campos_faltantes":[...]}. Un Rango de fechas válidas NUNCA es causa de error.
-- Sin resultados → el ESQUEMA con arrays vacíos y total_documentos:0.
-- Cerca del límite de tokens → cierra correctamente arrays y objeto antes de truncar.
-ESQUEMA: {"rango_de_fechas":["YYYY-MM-DD","YYYY-MM-DD"],"total_documentos":N,"fuentes_consultadas":["url"],"documentos":[{"numero_nombre":"str","fecha":"YYYY-MM-DD","tipo":"Resolución|Circular|Acuerdo|Concepto técnico","area":"str","relevancia":1,"confianza":"alta|media|baja","url_oficial":"https://","modifica_a":["str"],"descripcion":"str"}],"proyectos_en_consulta":[{"numero_nombre":"str","fecha":"YYYY-MM-DD","area":"str","url_oficial":"https://","descripcion":"str"}]}
-REGLAS: total_documentos=len(documentos). relevancia = entero 1–5. confianza: alta = URL oficial directa verificada, media = referencia verificada, baja = fuente secundaria.`;
-}
-
-// Call the Messages API with web_search enabled and return the parsed payload.
-// web_search is a server-side tool: Anthropic runs the search loop and may stop
-// with "pause_turn" if it hits the per-turn iteration limit — re-send to resume.
-async function callClaude(apiKey, entrada) {
-  let messages = [{ role: "user", content: `ENTRADA: ${JSON.stringify(entrada)}` }];
-  const system = buildSystemPrompt(new Date().toISOString().slice(0, 10));
-  let data;
-
-  for (let i = 0; i < 5; i++) {
-    const requestBody = {
-      model: "claude-sonnet-4-6",
-      max_tokens: 16000,
-      system,
-      tools: [{ type: "web_search_20260209", name: "web_search" }], // dynamic filtering built in; no beta header needed
-      messages,
-    };
-    console.log(`[callClaude] request body (iteration ${i}):\n${JSON.stringify(requestBody, null, 2)}`);
-
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Claude API error ${response.status}: ${await response.text()}`);
-    }
-
-    data = await response.json();
-    console.log(`[callClaude] raw response (iteration ${i}):\n${JSON.stringify(data, null, 2)}`);
-
-    if (data.stop_reason !== "pause_turn") break;
-    // Resume the paused server-tool loop: replay the user turn + partial assistant turn.
-    messages = [messages[0], { role: "assistant", content: data.content }];
-  }
-
-  if (data?.stop_reason === "pause_turn") {
-    throw new Error("Anthropic still paused (pause_turn) after 5 continuations — raise the loop bound.");
-  }
-
-  const parsed = parseClaudeResponse(data);
-  console.log(`[callClaude] parsed: ${parsed.documentos?.length ?? 0} documentos, ` +
-    `${parsed.proyectos_en_consulta?.length ?? 0} proyectos`);
-  return parsed;
-}
-
-// Extract the structured payload: web_search responses interleave tool blocks,
-// so take the LAST text block (the final JSON) and parse the { ... } object.
-function parseClaudeResponse(raw) {
-  const textBlock = raw.content?.findLast(b => b.type === "text");
-  if (!textBlock) throw new Error("No text block in response");
-  const match = textBlock.text.match(/\{[\s\S]*\}/);
-  if (!match) throw new Error("No JSON found in response text");
-  return JSON.parse(match[0]);
+// Unified entry: run the search+extract for the configured PROVIDER and return
+// the parsed { documentos, proyectos_en_consulta, … } payload either way.
+export async function callApi(apiKey, entrada) {
+  return PROVIDER === "ollama" ? ollama.callOllama(apiKey, entrada) : claude.callClaude(apiKey, entrada);
 }
 
 // ── ENTRADA builders ─────────────────────────────────────────────────────────
@@ -191,7 +135,7 @@ function buildEntrada(config, rango) {
 // ── Public operations ────────────────────────────────────────────────────────
 
 /**
- * Run one alert: query Claude with the config-derived ENTRADA, merge the result
+ * Run one alert: query the configured provider with the config-derived ENTRADA, merge the result
  * into master.json (incoming wins on dupes), and report the items not previously
  * seen. emailSent is a placeholder for the production SES send.
  *
@@ -204,14 +148,16 @@ function buildEntrada(config, rango) {
  */
 export async function runAlert(rango) {
   if (!apiKey) {
-    throw new Error("ANTHROPIC_API_KEY is not set — export it before running (see callClaude).");
+    throw new Error(PROVIDER === "ollama"
+      ? "OLLAMA_API_KEY is not set — export it before running (see callOllama)."
+      : "ANTHROPIC_API_KEY is not set — export it before running (see callClaude).");
   }
 
   const master = await readJson(MASTER_FILE, EMPTY_MASTER);
   const config = await getConfig();
 
   // const parsed = await readJson(MOCK_FILE);
-  const parsed = await callClaude(apiKey, buildEntrada(config, rango));
+  const parsed = await callApi(apiKey, buildEntrada(config, rango));
 
   const incomingDocs = parsed.documentos ?? [];
   const incomingProj = parsed.proyectos_en_consulta ?? [];

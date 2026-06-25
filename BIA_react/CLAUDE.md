@@ -1,43 +1,65 @@
 # CLAUDE.md
 
 Guidance for Claude Code working in `BIA_react/` (the Monitor CREG app + local
-mock backend). Repo-wide context is in the root `CLAUDE.md`.
+backend). Repo-wide context is in the root `CLAUDE.md`.
 
 ## Commands
 
 ```bash
 npm run dev      # Vite dev server (http://localhost:5173)
-npm run backend  # Local mock backend HTTP server (node api.js, http://localhost:8787)
+npm run backend  # Local backend HTTP server (node api.js, http://localhost:8787)
 npm run build    # Production build (dist/)
 npm run lint     # ESLint
 node api.js test # One-shot: run one alert and print the result
 
-# Live mode needs the key in the environment:
+# Claude provider (default):
 ANTHROPIC_API_KEY=sk-ant-... npm run backend
-# Mock mode needs nothing (replays a stored response):
+# Ollama provider (local model, requires Ollama running on :11434):
+API_PROVIDER=ollama OLLAMA_API_KEY=... npm run backend
+# Mock mode (no key, no network, replays stored response):
 USE_MOCK=1 npm run backend
+
+# Provider test scripts (tmp/):
+OLLAMA_API_KEY=... node tmp/ollama-test.mjs   # callApi via Ollama (parse only)
+OLLAMA_API_KEY=... node tmp/api_test.mjs      # runAlert via Ollama (full merge)
 ```
 
 There is no test suite. Run `dev` and `backend` together during development.
 
-## Run modes — live API call vs. stored JSON
+## Run modes — live provider vs. stored JSON
 
 `runAlert` in `api.js` has two **interchangeable** data sources, selected at
-runtime by the `USE_MOCK` env var (no code edits):
+runtime by `USE_MOCK` (no code edits):
 
-- **Live (default):** `callClaude(apiKey, …)` calls the Anthropic Messages API
-  with the `web_search` tool and returns real, current CREG documents. Requires
-  `ANTHROPIC_API_KEY` (`runAlert` throws a clear error if it's unset unless
-  `USE_MOCK=1`). Each run hits the network and bills tokens; the two
-  `[callClaude]` request/response logs print on the backend terminal.
+- **Live (default):** `callApi(apiKey, …)` dispatches to the active provider
+  (Claude or Ollama — see **Provider selection** below) and returns real, current
+  CREG documents. Requires the provider's key env var. Each run hits the network
+  and bills tokens/resources.
 - **Mock (`USE_MOCK=1`):** replays the bundled `data/mock_*.json` — no key, no
-  network, deterministic. The mock file is a **raw Anthropic message**, so it
-  goes through the same `parseClaudeResponse`, yielding the identical shape.
+  network, deterministic. The mock file is a raw Anthropic message, so it goes
+  through the same `parseClaudeResponse`, yielding the identical shape.
 
 Either source produces the same parsed `{ documentos, proyectos_en_consulta, … }`,
 is merged into `data/master.json` (incoming wins on dupes), and returns the same
-`{ newItems, emailSent }` — so the rest of the app behaves identically. The AWS
-`run-alert` Lambda mirrors this exact toggle (also `USE_MOCK`).
+`{ newItems, emailSent }` — so the rest of the app behaves identically.
+
+## Provider selection
+
+`api.js` selects the provider from `API_PROVIDER` at startup. Each provider's
+logic lives entirely in its own file under `providers/`:
+
+| `API_PROVIDER` | File | Key env var | Mechanism |
+|---|---|---|---|
+| *(unset)* / `claude` | `providers/claude.js` | `ANTHROPIC_API_KEY` | Anthropic Messages API; server-side `web_search` (`pause_turn` loop) |
+| `ollama` | `providers/ollama.js` | `OLLAMA_API_KEY` | Local `qwen3:32b` on `:11434`; manual tool-call loop against Ollama's hosted `web_search` REST API |
+
+`providers/shared.js` holds `buildSystemPrompt` and `extractJson`, shared by
+both. `callApi(apiKey, entrada)` in `api.js` is the single dispatcher; `runAlert`
+always goes through it.
+
+The Ollama provider trims each web-search result to 800 chars before feeding back
+to the model (prevents context-window overload), uses `think: false` (skips the
+reasoning trace), and sets a 300s per-call timeout on the Ollama client.
 
 ## Project overview
 
@@ -46,11 +68,8 @@ is merged into `data/master.json` (incoming wins on dupes), and returns the same
 filters (document types, areas, minimum relevance, alert email/frequency) and
 view an accumulating list of regulatory documents and projects-in-consultation.
 
-The app does **not** call the Anthropic API from the browser. The frontend talks
-only to a local backend over four HTTP endpoints; the backend (`api.js`) owns the
-Claude search. `api.js` runs in either of two modes (see **Run modes** above): a
-**live** Anthropic call (`web_search`) by default, or a **stored JSON** replay
-for offline/deterministic testing.
+The app does **not** call any AI provider from the browser. The frontend talks
+only to the local backend over four HTTP endpoints; `api.js` owns the AI search.
 
 ## Architecture
 
@@ -66,15 +85,17 @@ for offline/deterministic testing.
   output is `dist/` (see `project/README.md` for the deploy command).
 - **Backend** — `api.js`: a Node HTTP server (port `8787`) implementing the four
   endpoints. The config/master endpoints read/write JSON in `data/`; `run-alert`
-  calls Claude live (or replays a stored JSON — see **Run modes**).
+  dispatches through `callApi` to the active provider (or replays mock JSON).
   `node api.js test` runs one alert.
+- **Providers** — `providers/claude.js`, `providers/ollama.js`,
+  `providers/shared.js`: all AI call logic, one file per provider. `api.js`
+  imports both and selects at runtime via `API_PROVIDER`.
 
 ## HTTP contract (mirrors the AWS Lambdas in `project/`)
 
-- `POST /run-alert` → gets the Claude response (live call, or stored JSON in
-  testing mode), merges it into `data/master.json`, writes it back, returns
-  `{ newItems: { documentos, proyectos_en_consulta }, emailSent }`. An optional
-  `{ Rango }` in the request body overrides the date window (the UI date pickers).
+- `POST /run-alert` → dispatches to the active provider (live or mock), merges
+  into `data/master.json`, returns `{ newItems: { documentos, proyectos_en_consulta }, emailSent }`.
+  An optional `{ Rango }` in the request body overrides the date window (the UI date pickers).
 - `POST /save-config` → writes `data/config.json`.
 - `GET  /get-config` → reads `data/config.json` (or `null`).
 - `GET  /get-master-json` → reads `data/master.json`.
@@ -108,15 +129,15 @@ backend agree). Both `saveConfig` and `runAlert` log changes to the console
 The stored-JSON path is a supported testing mode, not dead code: keep
 `MOCK_FILE`, the `readJson` fallback in `runAlert`, and the bundled
 `data/mock_*.json`. The unused `SYSTEM_PROMPT` const in `creg_monitor.jsx` is
-also kept (the live prompt now lives in `api.js` `buildSystemPrompt`); its
-unused-var lint is acceptable — do not delete it or add an eslint-disable.
+also kept (the live prompt now lives in `providers/shared.js`
+`buildSystemPrompt`); its unused-var lint is acceptable — do not delete it or
+add an eslint-disable.
 
 ## Not tracked in git
 
-`data/` (runtime state + mock/seed JSON, kept on disk) and `grounding_data/`
-(dev/research artifacts: prompts, sample responses, older prototypes,
-stakeholder requirements) are gitignored. `node_modules/`, `dist/`, and
-`.env.production` too.
+`data/` (runtime state + mock/seed JSON, kept on disk), `grounding_data/`
+(dev/research artifacts), `tmp/` (provider test scripts), `node_modules/`,
+`dist/`, `.env.production`, and `API-keys` are gitignored.
 
 ## Response JSON schema (per document)
 
