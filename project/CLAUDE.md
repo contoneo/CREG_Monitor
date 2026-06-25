@@ -47,11 +47,12 @@ for the full sequence and for building + uploading the frontend after apply.
 - **Run modes — live API call vs. stored JSON:** `run-alert` has two
   **interchangeable** data sources, selected by the `USE_MOCK` env var on the
   Lambda (no code edits — mirrors `BIA_react/api.js`):
-  - **Live (default, `USE_MOCK` unset):** `callClaude(await getApiKey(), entrada)`
-    calls the Anthropic Messages API with the `web_search` tool (key from SSM).
-    This makes **`TF_VAR_claude_api_key` required** — set it (and put it in SSM)
-    before deploying, or live runs fail.
-  - **Mock (`USE_MOCK=1`):** `loadMockClaude()` replays the bundled
+  - **Live (default):** `callClaude(await getApiKey(), entrada)` calls the
+    Anthropic Messages API with the `web_search` tool (key from SSM). This is the
+    fallback for **any** `USE_MOCK` value other than exactly `"1"` — unset,
+    `true`, `0`, `yes` all run live. It makes **`TF_VAR_claude_api_key` required**
+    — set it (and put it in SSM) before deploying, or live runs fail.
+  - **Mock (`USE_MOCK=1` exactly):** `loadMockClaude()` replays the bundled
     `mock_2025-12-01_2026-06-04.json` (a raw Anthropic message, run through
     `parseClaudeResponse`) — no key, no network, deterministic. The mock file
     must stay in the deploy zip. Keep `loadMockClaude` and the

@@ -38,7 +38,10 @@ const CONFIG_TABLE = process.env.CONFIG_TABLE;
 const RESULTS_TABLE = process.env.RESULTS_TABLE;
 const SENDER_EMAIL = process.env.SENDER_EMAIL;
 const SSM_PATH     = process.env.CLAUDE_API_KEY_SSM_PATH;
-const USE_MOCK     = process.env.USE_MOCK === "1";  // replay bundled mock instead of calling Claude
+// Live Claude is the DEFAULT. The mock runs only when USE_MOCK is exactly the
+// string "1"; unset or any other value (true, 0, yes…) → live callClaude, which
+// requires TF_VAR_claude_api_key in SSM.
+const USE_MOCK     = process.env.USE_MOCK === "1";
 
 const ssm    = new SSMClient({ region });
 const dynamo = new DynamoDBClient({ region });
@@ -331,7 +334,8 @@ export const handler = async (event) => {
     console.log("ENTRADA:", JSON.stringify(entrada));
 
     // Data source — live Claude call or the bundled mock, interchangeable via the
-    // USE_MOCK env var on the Lambda. loadMockClaude needs no key (no SSM read).
+    // USE_MOCK env var on the Lambda. Default (USE_MOCK unset) is the LIVE call,
+    // so getApiKey() reads the SSM key; only USE_MOCK=1 takes the no-key mock path.
     const claudeResult = USE_MOCK
       ? await loadMockClaude()
       : await callClaude(await getApiKey(), entrada);
