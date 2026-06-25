@@ -497,6 +497,13 @@ body.dark input[type=range]::-moz-range-track {
   gap: 8px;
   flex-shrink: 0;
 }
+.btn-reset {
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--red-text);
+  border-color: var(--red-text);
+}
+.btn-reset:hover:not(:disabled) { background: var(--red-bg); }
 .dark-toggle-icon { font-size: 15px; line-height: 1; }
 .dark-toggle {
   position: relative;

@@ -19,7 +19,7 @@ lambdas/
                     #   also bundles mock_2025-12-01_2026-06-04.json for the stored-JSON
                     #   fallback (must be in the zip)
   save-config/      # POST /save-config, GET /get-config
-  get-master-json/  # GET  /get-master-json
+  get-master-json/  # GET  /get-master-json, POST /reset-master
 terraform/          # modular IaC: iam, storage, email, api, scheduler, frontend
 ```
 

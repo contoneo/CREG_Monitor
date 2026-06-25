@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { createRoot } from 'react-dom/client';
 import './creg_monitor.css';
-import { saveConfig, getConfig, runAlert, getMasterJson } from './api.client';
+import { saveConfig, getConfig, runAlert, getMasterJson, resetMaster } from './api.client';
 import master_initData from './data/master_init.json';
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -21,6 +21,17 @@ const AREAS = [
 const AREA_EMOJI = ["⚡", "🔥", "☀️", "📈", "🔌", "💧", "🧾", "🧠", "🔋", "🏗️"];
 
 const REL_LABEL = { 5: "Muy alta", 4: "Alta", 3: "Media", 2: "Baja", 1: "Mínima" };
+
+// Empty master shape — mirrors EMPTY_MASTER in api.js / the seed in storage/main.tf.
+// Used to clear the UI immediately after a reset.
+const EMPTY_RESULT = {
+  rango_de_fechas: [],
+  total_documentos: 0,
+  fuentes_consultadas: [],
+  documentos: [],
+  proyectos_en_consulta: [],
+  lastUpdated: null,
+};
 
 // ── Sub-components ─────────────────────────────────────────────────────────
 
@@ -180,6 +191,20 @@ function CREGMonitor() {
     setLoading(false);
   };
 
+  // Reset the accumulated master record (backend + UI) back to empty.
+  const handleReset = async () => {
+    if (!window.confirm("¿Borrar todos los documentos acumulados? Esta acción no se puede deshacer.")) return;
+    setError(null);
+    setNotice(null);
+    try {
+      const empty = await resetMaster();
+      setResult(empty ?? EMPTY_RESULT);
+      setNotice("Registro restablecido: 0 documentos.");
+    } catch (e) {
+      setError("Error al restablecer el registro: " + e.message);
+    }
+  };
+
   // Sort / filter
   const handleSort = (field) => {
     if (sortField === field) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -220,6 +245,14 @@ function CREGMonitor() {
           <p>Comisión de Regulación de Energía y Gas · Colombia</p>
         </div>
         <div className="dark-mode-switcher">
+          <button
+            className="btn btn-reset"
+            onClick={handleReset}
+            disabled={loading}
+            title="Borrar todos los documentos acumulados"
+          >
+            🗑 Restablecer datos
+          </button>
           <span className="dark-toggle-icon">{darkMode ? '☀️' : '🌙'}</span>
           <button
             className={`dark-toggle${darkMode ? ' on' : ''}`}

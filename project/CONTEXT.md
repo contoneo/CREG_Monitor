@@ -44,7 +44,8 @@ React App (S3 + CloudFront)
   │
   ├─ POST /save-config     → Lambda: save-config → DynamoDB config table
   ├─ GET  /get-config      → Lambda: save-config → DynamoDB config table
-  └─ GET  /get-master-json → Lambda: get-master-json → DynamoDB results table
+  ├─ GET  /get-master-json → Lambda: get-master-json → DynamoDB results table
+  └─ POST /reset-master    → Lambda: get-master-json → PutItem empty master record
 
 EventBridge Scheduler (cron)
   └─ invokes the run-alert Lambda directly (payload { periodic: true })
@@ -82,7 +83,10 @@ EventBridge Scheduler (cron)
 - GET  /get-config  → reads config from DynamoDB
 
 ### get-master-json
-- GET /get-master-json → returns the single master record from DynamoDB results table
+- GET  /get-master-json → returns the single master record from DynamoDB results table
+- POST /reset-master    → resets the master record to the empty shape (discards all accumulated
+  documents/proyectos). Handled by the same Lambda as `get-master-json`, mirroring
+  how `save-config` also serves `get-config`. Returns the empty record so the UI can refresh.
 
 ---
 
@@ -271,11 +275,12 @@ CloudFront. Behaviors relevant to the backend contract:
 ## React API client
 
 The deployed frontend is **`BIA_react/`** (Vite). Its client is
-`BIA_react/api.client.js`, with four functions:
+`BIA_react/api.client.js`, with five functions:
 - `getMasterJson()`      → GET  /get-master-json  (called on app startup)
 - `getConfig()`          → GET  /get-config
 - `saveConfig(config)`   → POST /save-config
 - `runAlert(signal?)`    → POST /run-alert  (returns `{ newItems, emailSent }`)
+- `resetMaster()`        → POST /reset-master  (resets accumulated data to empty; "🗑 Restablecer datos" button in header)
 
 The base URL comes from **`VITE_API_BASE`** (a Vite var — `REACT_APP_*` is
 ignored). Set it to the `api_gateway_url` output **at build time**, build to

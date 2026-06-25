@@ -43,3 +43,8 @@ export async function getConfig() {
 export async function getMasterJson() {
   return request("/get-master-json");
 }
+
+// Reset the accumulated master record back to the empty shape; returns it.
+export async function resetMaster() {
+  return request("/reset-master", { method: "POST" });
+}

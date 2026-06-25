@@ -208,6 +208,13 @@ resource "aws_apigatewayv2_route" "get_master_json" {
   target    = "integrations/${aws_apigatewayv2_integration.get_master_json.id}"
 }
 
+# Reset the master record to empty — handled by the same get-master-json Lambda.
+resource "aws_apigatewayv2_route" "reset_master" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /reset-master"
+  target    = "integrations/${aws_apigatewayv2_integration.get_master_json.id}"
+}
+
 # ── Lambda permissions ────────────────────────────────────────────────────────
 resource "aws_lambda_permission" "run_alert" {
   statement_id  = "AllowAPIGatewayInvoke"

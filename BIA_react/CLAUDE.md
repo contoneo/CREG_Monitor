@@ -99,6 +99,9 @@ only to the local backend over four HTTP endpoints; `api.js` owns the AI search.
 - `POST /save-config` → writes `data/config.json`.
 - `GET  /get-config` → reads `data/config.json` (or `null`).
 - `GET  /get-master-json` → reads `data/master.json`.
+- `POST /reset-master` → resets `data/master.json` to the empty shape; returns the empty record.
+  Triggered by the "🗑 Restablecer datos" button in the app header (beside the dark/light toggle).
+  On AWS this is handled by the `get-master-json` Lambda (same pattern as `save-config`/`get-config`).
 
 `emailSent` is true only when alerts are `enabled`, there are new items, and
 `recipientEmail` is valid (regex shared with the recipient `<input>` so UI and

@@ -229,6 +229,18 @@ export async function getMasterJson() {
   return readJson(MASTER_FILE, EMPTY_MASTER);
 }
 
+/**
+ * Reset the master record to the empty shape, discarding all accumulated
+ * documents/proyectos. Mirrors the reset-master path in the AWS get-master-json
+ * Lambda. Returns the empty record so the caller can refresh the UI.
+ */
+export async function resetMaster() {
+  const empty = { ...EMPTY_MASTER, lastUpdated: new Date().toISOString() };
+  await writeJson(MASTER_FILE, empty);
+  console.log("[master.json] reset to empty");
+  return empty;
+}
+
 // ── HTTP server ──────────────────────────────────────────────────────────────
 
 const CORS = {
@@ -268,6 +280,9 @@ function startServer(port = process.env.PORT || 8787) {
       }
       if (req.method === "GET" && pathname === "/get-master-json") {
         return send(res, 200, await getMasterJson());
+      }
+      if (req.method === "POST" && pathname === "/reset-master") {
+        return send(res, 200, await resetMaster());
       }
       return send(res, 404, { error: "Not found" });
     } catch (e) {

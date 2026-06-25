@@ -8,7 +8,7 @@ files add detail when you work inside each part.
 This is a single repository with two related parts:
 
 - **`BIA_react/`** — the **Monitor CREG** React/Vite app (frontend) plus a local
-  Node backend (`api.js`) that serves the four HTTP endpoints and owns the AI
+  Node backend (`api.js`) that serves the five HTTP endpoints and owns the AI
   search. See `BIA_react/CLAUDE.md`.
 - **`project/`** — the **AWS/Terraform deployment** of that app: S3 + CloudFront
   frontend, API Gateway + Lambda backend, DynamoDB, SES, EventBridge Scheduler.
@@ -16,8 +16,8 @@ This is a single repository with two related parts:
 
 ## How the two parts relate
 
-The frontend and backend share one HTTP contract — four endpoints
-(`/run-alert`, `/save-config`, `/get-config`, `/get-master-json`) — and one data
+The frontend and backend share one HTTP contract — five endpoints
+(`/run-alert`, `/save-config`, `/get-config`, `/get-master-json`, `/reset-master`) — and one data
 model (a single accumulating "master" record of regulatory documents,
 deduplicated by a **normalized** `numero_nombre`: drop `No.`, collapse
 whitespace, lowercase; the fresh response wins on a collision). `BIA_react/api.js`
