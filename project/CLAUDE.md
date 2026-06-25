@@ -46,17 +46,23 @@ for the full sequence and for building + uploading the frontend after apply.
 - Lambdas are **Node.js 22.x** ES modules (`index.mjs`, `export const handler`).
 - **Run modes — live API call vs. stored JSON:** `run-alert` has two
   **interchangeable** data sources, selected by the `USE_MOCK` env var on the
-  Lambda (no code edits — mirrors `BIA_react/api.js`):
-  - **Live (default):** `callClaude(await getApiKey(), entrada)` calls the
-    Anthropic Messages API with the `web_search` tool (key from SSM). This is the
-    fallback for **any** `USE_MOCK` value other than exactly `"1"` — unset,
-    `true`, `0`, `yes` all run live. It makes **`TF_VAR_claude_api_key` required**
-    — set it (and put it in SSM) before deploying, or live runs fail.
-  - **Mock (`USE_MOCK=1` exactly):** `loadMockClaude()` replays the bundled
-    `mock_2025-12-01_2026-06-04.json` (a raw Anthropic message, run through
-    `parseClaudeResponse`) — no key, no network, deterministic. The mock file
-    must stay in the deploy zip. Keep `loadMockClaude` and the
-    `callClaude`/`buildSystemPrompt`/SSM scaffolding regardless of mode.
+  Lambda (no code edits — mirrors `BIA_react/api.js`). **`USE_MOCK` is wired only
+  through Terraform**, via the `use_mock` bool variable → `USE_MOCK = var.use_mock
+  ? "1" : "0"` in the run-alert Lambda env (`modules/api/main.tf`). A shell
+  `export USE_MOCK=1` does **not** reach the Lambda — deploy with
+  `TF_VAR_use_mock=true`:
+  - **Live (default, `use_mock=false`):** `callClaude(await getApiKey(), entrada)`
+    calls the Anthropic Messages API with the `web_search` tool (key from SSM).
+    This is also the fallback for any `USE_MOCK` value other than exactly `"1"`. It
+    makes **`TF_VAR_claude_api_key` required** — set it (and put it in SSM) before
+    deploying, or live runs fail (a missing key surfaces as a 500 on `/run-alert`).
+  - **Mock (`TF_VAR_use_mock=true` → `USE_MOCK=1`):** `loadMockClaude()` replays
+    the bundled `mock_2025-12-01_2026-06-04.json` (a raw Anthropic message, run
+    through `parseClaudeResponse`) — no key, no network, deterministic. The mock
+    file must stay in the deploy zip. `use_mock` defaults to `false`, so a plain
+    `apply` reverts to live — pass `TF_VAR_use_mock=true` on every mock apply. Keep
+    `loadMockClaude` and the `callClaude`/`buildSystemPrompt`/SSM scaffolding
+    regardless of mode.
   - A UI search may pass `{ Rango }` in the request body to override the date
     window; the periodic run omits it and uses the `calls_per_month` window.
 - The Claude API key is server-side only (SSM SecureString); never put it in the

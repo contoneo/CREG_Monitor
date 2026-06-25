@@ -10,3 +10,7 @@ environment         = "dev"
 sender_email        = "alerts@yourdomain.com"
 sender_domain       = "yourdomain.com"
 schedule_expression = "rate(1 hour)"
+
+# Run mode for run-alert: false (default) = live Anthropic call (needs claude_api_key);
+# true = replay the bundled mock JSON (no key needed). Or set TF_VAR_use_mock=true.
+use_mock            = false

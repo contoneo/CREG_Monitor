@@ -99,6 +99,18 @@ export TF_VAR_claude_api_key="sk-ant-..."
 export TF_VAR_sender_email="alerts@yourdomain.com"
 ```
 
+**Run mode — live vs. mock.** By default `run-alert` makes the **live** Anthropic
+call, so `TF_VAR_claude_api_key` must hold a valid key. To deploy in **mock mode**
+instead (replays the bundled JSON, no key needed), set `TF_VAR_use_mock`:
+
+```bash
+export TF_VAR_use_mock=true     # run-alert Lambda gets USE_MOCK=1
+```
+
+`use_mock` defaults to `false`, so a plain `apply` always deploys **live** — pass
+`TF_VAR_use_mock=true` on every apply you want mock. (Setting a shell `USE_MOCK`
+var does nothing; only `TF_VAR_use_mock` reaches the Lambda.)
+
 ### 3. Deploy
 
 ```bash

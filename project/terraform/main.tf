@@ -89,6 +89,7 @@ module "api" {
   claude_api_key_ssm_path = "/${var.project_name}/${var.environment}/claude-api-key"
   sender_email            = var.sender_email
   allowed_origin          = "https://${module.frontend.cloudfront_domain}"
+  use_mock                = var.use_mock
 }
 
 module "scheduler" {

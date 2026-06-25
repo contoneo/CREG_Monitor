@@ -34,6 +34,12 @@ variable "claude_api_key" {
   default     = "default"
 }
 
+variable "use_mock" {
+  description = "When true, run-alert replays the bundled mock JSON (sets the Lambda's USE_MOCK=1, no Claude key needed). When false (default), it makes the live Anthropic call and requires a valid claude_api_key."
+  type        = bool
+  default     = false
+}
+
 variable "schedule_expression" {
   description = "EventBridge Scheduler cron or rate expression"
   type        = string

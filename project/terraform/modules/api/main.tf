@@ -7,6 +7,7 @@ variable "results_table_name"      {}
 variable "claude_api_key_ssm_path" {}
 variable "sender_email"            {}
 variable "allowed_origin"          {}
+variable "use_mock"                { type = bool }
 
 locals {
   run_alert_fn      = "${var.project_name}-${var.environment}-run-alert"
@@ -77,6 +78,7 @@ resource "aws_lambda_function" "run_alert" {
       SENDER_EMAIL            = var.sender_email
       CLAUDE_API_KEY_SSM_PATH = var.claude_api_key_ssm_path
       AWS_REGION_NAME         = var.aws_region
+      USE_MOCK                = var.use_mock ? "1" : "0"  # "1" replays bundled mock; any other value runs live
     }
   }
 
