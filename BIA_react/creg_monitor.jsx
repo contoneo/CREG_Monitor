@@ -43,6 +43,111 @@ function SortIcon({ field, sortField, sortDir }) {
   );
 }
 
+function ThSort({ label, field, width, sortField, sortDir, onSort }) {
+  return (
+    <th className="th-sort" style={{ width }} onClick={() => onSort(field)}>
+      {label} <SortIcon field={field} sortField={sortField} sortDir={sortDir} />
+    </th>
+  );
+}
+
+// "Documentos" sub-tab: the sortable, filterable results table.
+function DocumentosTable({ docs, sortField, sortDir, onSort }) {
+  return (
+    <div className="table-wrap">
+      <table className="docs-table">
+        <thead>
+          <tr>
+            <ThSort label="Documento" field="numero_nombre" width="20%" sortField={sortField} sortDir={sortDir} onSort={onSort} />
+            <ThSort label="Fecha" field="fecha" width="9%" sortField={sortField} sortDir={sortDir} onSort={onSort} />
+            <ThSort label="Tipo" field="tipo" width="10%" sortField={sortField} sortDir={sortDir} onSort={onSort} />
+            <ThSort label="Área" field="area" width="8%" sortField={sortField} sortDir={sortDir} onSort={onSort} />
+            <ThSort label="Relev." field="relevancia" width="7%" sortField={sortField} sortDir={sortDir} onSort={onSort} />
+            <ThSort label="Confianza" field="confianza" width="8%" sortField={sortField} sortDir={sortDir} onSort={onSort} />
+            <th className="th-plain" style={{ width: "38%" }}>Descripción</th>
+          </tr>
+        </thead>
+        <tbody>
+          {docs.map((doc, i) => (
+            <tr key={i}>
+              <td className="td">
+                {doc.url_oficial && doc.url_oficial !== "https://" ? (
+                  <a href={doc.url_oficial} className="doc-link">{doc.numero_nombre}</a>
+                ) : (
+                  <span className="doc-title">{doc.numero_nombre}</span>
+                )}
+                {doc.modifica_a?.length > 0 && (
+                  <div className="doc-modifica">Modifica: {doc.modifica_a.join(", ")}</div>
+                )}
+              </td>
+              <td className="td td-date">{doc.fecha}</td>
+              <td className="td"><span className="tipo-chip">{doc.tipo}</span></td>
+              <td className="td td-area">{doc.area}</td>
+              <td className="td">
+                <span className={`pill pill-rel-${doc.relevancia}`}>
+                  {REL_LABEL[doc.relevancia] ?? doc.relevancia}
+                </span>
+              </td>
+              <td className="td">
+                <span className={`pill pill-conf-${doc.confianza?.split("=")[0] ?? 'baja'}`}>
+                  {doc.confianza}
+                </span>
+              </td>
+              <td className="td td-desc">{doc.descripcion}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {docs.length === 0 && (
+        <p className="no-results">No hay documentos con los filtros actuales.</p>
+      )}
+    </div>
+  );
+}
+
+// "Proyectos en consulta" sub-tab: a plain (unsorted) results table.
+function ProyectosTable({ proyectos }) {
+  return (
+    <table className="docs-table">
+      <thead>
+        <tr>
+          {[["Proyecto", "34%"], ["Fecha", "11%"], ["Área", "17%"], ["Descripción", "38%"]].map(([h, w]) => (
+            <th key={h} className="th-plain" style={{ width: w }}>{h}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {proyectos.map((p, i) => (
+          <tr key={i}>
+            <td className="td">
+              {p.url_oficial
+                ? <a href={p.url_oficial} className="doc-link">{p.numero_nombre}</a>
+                : <span className="doc-title">{p.numero_nombre}</span>}
+            </td>
+            <td className="td td-date">{p.fecha}</td>
+            <td className="td td-area">{p.area}</td>
+            <td className="td td-desc">{p.descripcion}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+// "Fuentes consultadas" sub-tab: the flat list of source URLs.
+function FuentesList({ fuentes }) {
+  return (
+    <div className="sources-list">
+      {fuentes?.map((url, i) => (
+        <a key={i} href={url} className="source-link">
+          <i className="ti ti-external-link" aria-hidden="true" />
+          {url}
+        </a>
+      ))}
+    </div>
+  );
+}
+
 // ── Config persistence ─────────────────────────────────────────────────────
 
 // Maps the component's camelCase state to the backend's config schema.
@@ -147,8 +252,10 @@ function CREGMonitor() {
   const toggleArea = (a) =>
     setAreas(p => p.includes(a) ? p.filter(x => x !== a) : [...p, a]);
 
-  // Search handlers
-  const handleSearch = async () => {
+  // Search handlers. `useTestData` (from the "Aplicar Búsqueda con datos de
+  // prueba" button) replays the bundled test-data response instead of calling
+  // the live provider.
+  const handleSearch = async (useTestData = false) => {
     if (!tipos.length || !areas.length) {
       setError("Selecciona al menos un tipo y un área.");
       return;
@@ -163,7 +270,7 @@ function CREGMonitor() {
     abortRef.current = new AbortController();
 
     try {
-      const { newItems, emailSent } = await runAlert(abortRef.current.signal, [fechaInicio, fechaFin]);
+      const { newItems, emailSent } = await runAlert(abortRef.current.signal, [fechaInicio, fechaFin], useTestData);
       const hasNew =
         (newItems?.documentos?.length ?? 0) + (newItems?.proyectos_en_consulta?.length ?? 0) > 0;
       // Always refresh from the backend master so the table reflects stored state.
@@ -226,12 +333,6 @@ function CREGMonitor() {
   const uniqueAreas = result?.documentos ? [...new Set(result.documentos.map(d => d.area))] : [];
   const uniqueTipos = result?.documentos ? [...new Set(result.documentos.map(d => d.tipo))] : [];
 
-  const th = (label, field, w) => (
-    <th className="th-sort" style={{ width: w }} onClick={() => handleSort(field)}>
-      {label} <SortIcon field={field} sortField={sortField} sortDir={sortDir} />
-    </th>
-  );
-
   // ── Render ───────────────────────────────────────────────────────────────
 
   return (
@@ -251,7 +352,7 @@ function CREGMonitor() {
             disabled={loading}
             title="Borrar todos los documentos acumulados"
           >
-            🗑 Restablecer datos
+            🗑 Borrar Base de Datos
           </button>
           <span className="dark-toggle-icon">{darkMode ? '☀️' : '🌙'}</span>
           <button
@@ -278,11 +379,18 @@ function CREGMonitor() {
       <div id="tab-dashboard" className={`section${mainTab === 'dashboard' ? ' active' : ''}`}>
         <div className="row-apart">
           <div className="search-controls">
-            <button className={`btn btn-primary${loading ? ' loading' : ''}`} id="btn-scan"
-              disabled={!tipos.length || !areas.length}
-              onClick={loading ? handleStop : handleSearch}>
-              {loading ? "⏹ Detener" : "⟳ Buscar ahora"}
-            </button>
+            <div className="search-buttons-row">
+              <button className={`btn btn-primary${loading ? ' loading' : ''}`} id="btn-scan"
+                disabled={!tipos.length || !areas.length}
+                onClick={loading ? handleStop : () => handleSearch(false)}>
+                {loading ? "⏹ Detener" : "⟳ Buscar con IA"}
+              </button>
+              <button className="btn" id="btn-scan-test"
+                disabled={loading || !tipos.length || !areas.length}
+                onClick={() => handleSearch(true)}>
+                Aplicar Búsqueda con datos de prueba
+              </button>
+            </div>
             <div className="date-fields-row">
               <label className="date-field">
                 <span>Desde</span>
@@ -297,9 +405,9 @@ function CREGMonitor() {
               <span className="card-hint date-fields-hint">El rango de fechas se asigna automáticamente de la configuración de "ALERTAS POR EMAIL"</span>
             </div>
           </div>
-          {error && <div className="error-msg">{error}</div>}
-          {notice && <div className="info-msg">{notice}</div>}
         </div>
+        {error && <div className="error-msg">{error}</div>}
+        {notice && <div className="info-msg">{notice}</div>}
 
         {loading && (
           <div className="loading-state">
@@ -353,99 +461,21 @@ function CREGMonitor() {
                     {docs.length} resultado{docs.length !== 1 ? "s" : ""}
                   </span>
                 </div>
-                <div className="table-wrap">
-                  <table className="docs-table">
-                    <thead>
-                      <tr>
-                        {th("Documento", "numero_nombre", "20%")}
-                        {th("Fecha", "fecha", "9%")}
-                        {th("Tipo", "tipo", "10%")}
-                        {th("Área", "area", "8%")}
-                        {th("Relev.", "relevancia", "7%")}
-                        {th("Confianza", "confianza", "8%")}
-                        <th className="th-plain" style={{ width: "38%" }}>Descripción</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {docs.map((doc, i) => (
-                        <tr key={i}>
-                          <td className="td">
-                            {doc.url_oficial && doc.url_oficial !== "https://" ? (
-                              <a href={doc.url_oficial} className="doc-link">{doc.numero_nombre}</a>
-                            ) : (
-                              <span className="doc-title">{doc.numero_nombre}</span>
-                            )}
-                            {doc.modifica_a?.length > 0 && (
-                              <div className="doc-modifica">Modifica: {doc.modifica_a.join(", ")}</div>
-                            )}
-                          </td>
-                          <td className="td td-date">{doc.fecha}</td>
-                          <td className="td"><span className="tipo-chip">{doc.tipo}</span></td>
-                          <td className="td td-area">{doc.area}</td>
-                          <td className="td">
-                            <span className={`pill pill-rel-${doc.relevancia}`}>
-                              {REL_LABEL[doc.relevancia] ?? doc.relevancia}
-                            </span>
-                          </td>
-                          <td className="td">
-                            <span className={`pill pill-conf-${doc.confianza?.split("=")[0] ?? 'baja'}`}>
-                              {doc.confianza}
-                            </span>
-                          </td>
-                          <td className="td td-desc">{doc.descripcion}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {docs.length === 0 && (
-                    <p className="no-results">No hay documentos con los filtros actuales.</p>
-                  )}
-                </div>
+                <DocumentosTable docs={docs} sortField={sortField} sortDir={sortDir} onSort={handleSort} />
               </div>
             )}
 
             {activeTab === "proyectos" && (
               <div>
                 {result.proyectos_en_consulta?.length > 0 ? (
-                  <table className="docs-table">
-                    <thead>
-                      <tr>
-                        {[["Proyecto", "34%"], ["Fecha", "11%"], ["Área", "17%"], ["Descripción", "38%"]].map(([h, w]) => (
-                          <th key={h} className="th-plain" style={{ width: w }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {result.proyectos_en_consulta.map((p, i) => (
-                        <tr key={i}>
-                          <td className="td">
-                            {p.url_oficial
-                              ? <a href={p.url_oficial} className="doc-link">{p.numero_nombre}</a>
-                              : <span className="doc-title">{p.numero_nombre}</span>}
-                          </td>
-                          <td className="td td-date">{p.fecha}</td>
-                          <td className="td td-area">{p.area}</td>
-                          <td className="td td-desc">{p.descripcion}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <ProyectosTable proyectos={result.proyectos_en_consulta} />
                 ) : (
                   <p className="no-results">No se encontraron proyectos en consulta para estos filtros.</p>
                 )}
               </div>
             )}
 
-            {activeTab === "fuentes" && (
-              <div className="sources-list">
-                {result.fuentes_consultadas?.map((url, i) => (
-                  <a key={i} href={url} className="source-link">
-                    <i className="ti ti-external-link" aria-hidden="true" />
-                    {url}
-                  </a>
-                ))}
-              </div>
-            )}
+            {activeTab === "fuentes" && <FuentesList fuentes={result.fuentes_consultadas} />}
           </div>
         )}
       </div>

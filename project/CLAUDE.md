@@ -22,15 +22,15 @@ lambdas/
       claude.mjs        #   callClaude — Anthropic Messages API + pause_turn loop
       ollama.mjs        #   callOllama — qwen3:32b via Cloudflare Tunnel + CF Access headers
     index.mjs           #   dispatch: worker | status check | periodic (sync) | browser (async job — see Conventions)
-    mock_2025-12-01_2026-06-04.json  # stored-JSON fallback (must be in the zip)
+    test_data_2025-12-01_2026-06-04.json  # stored-JSON fallback (must be in the zip)
   save-config/          # POST /save-config, GET /get-config
   get-master-json/      # GET  /get-master-json, POST /reset-master
 terraform/              # modular IaC: iam, storage, email, api, scheduler, frontend
 ```
 
 The Lambdas in `lambdas/*` are the AWS implementation of the same HTTP contract
-that `BIA_react/api.js` mocks locally — keep them in sync when the contract or
-the merge/dedup rules change.
+that `BIA_react/api.js` implements locally — keep them in sync when the
+contract or the merge/dedup rules change.
 
 The **deployed frontend is `BIA_react/`** (built with Vite, uploaded to S3 by the
 README's deploy step) — its client is `BIA_react/api.client.js`. (There is no
@@ -50,17 +50,20 @@ See `README.md` for the full sequence and for building + uploading the frontend.
 
 - Lambdas are **Node.js 22.x** ES modules (`index.mjs`, `export const handler`).
 - **Run modes — live provider vs. stored JSON:** `run-alert` has two
-  **interchangeable** data sources, selected by `USE_MOCK` on the Lambda (no
-  code edits — mirrors `BIA_react/api.js`). **`USE_MOCK` is wired only through
-  Terraform** via the `use_mock` bool (`modules/api/main.tf`). A shell `export
-  USE_MOCK=1` does **not** reach the Lambda — deploy with `TF_VAR_use_mock=true`:
-  - **Live (default, `use_mock=false`):** dispatches to the active provider
-    (`API_PROVIDER`). The fallback for any `USE_MOCK` value other than `"1"`.
-  - **Mock (`TF_VAR_use_mock=true` → `USE_MOCK=1`):** `loadMockClaude()` replays
-    the bundled `mock_2025-12-01_2026-06-04.json` — no key, no network.
-    The mock file must stay in the deploy zip.
-  - A UI search may pass `{ Rango }` in the request body to override the date
-    window; the periodic run omits it and uses the `calls_per_month` window.
+  **interchangeable** data sources, selected **per-request** by the browser
+  (no env var, no redeploy — mirrors `BIA_react/api.js`). The "Aplicar Búsqueda
+  con datos de prueba" button in `creg_monitor.jsx` sends
+  `{ useTestData: true }` on `POST /run-alert`; the flag threads through
+  `startAsyncJob` → the worker self-invocation payload → `performRun`:
+  - **Live (default):** dispatches to the active provider (`API_PROVIDER`) —
+    used whenever `useTestData` is absent/false, including every periodic
+    (EventBridge) run.
+  - **Test data (`useTestData: true`):** `loadTestData()` replays the bundled
+    `test_data_2025-12-01_2026-06-04.json` — no key, no network. The file must
+    stay in the deploy zip.
+  - A UI search may also pass `{ Rango }` in the request body to override the
+    date window; the periodic run omits it and uses the `calls_per_month`
+    window.
 - **Provider selection (`API_PROVIDER`):**
   - **`claude` (default):** `callClaude` calls the Anthropic Messages API with the
     `web_search` tool; key from SSM (`CLAUDE_API_KEY_SSM_PATH`). Required:
@@ -85,8 +88,9 @@ See `README.md` for the full sequence and for building + uploading the frontend.
   account-level guardrail this deploy can't see or override; abandoned.)
   Instead: `POST /run-alert` writes a `job#<uuid>` status record
   (`RESULTS_TABLE`, `ttl`-expiring in ~1h), asynchronously self-invokes the same
-  Lambda (`InvocationType: "Event"`, payload `{ worker: true, jobId, entrada }`)
-  to run `performRun()`, and returns **202 `{ jobId }`** immediately. The worker
+  Lambda (`InvocationType: "Event"`, payload
+  `{ worker: true, jobId, entrada, useTestData }`) to run `performRun()`, and
+  returns **202 `{ jobId }`** immediately. The worker
   invocation writes `status: "done"`/`"error"` back to the job record;
   `GET /run-alert-status?jobId=...` reads it, and `api.client.js`'s
   `runAlert()` polls every 3s (abortable, ~330s cap) until it settles. Needs

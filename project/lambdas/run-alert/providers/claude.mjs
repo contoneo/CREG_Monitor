@@ -49,7 +49,7 @@ export async function callClaude(apiKey, entrada) {
 
 // Extract the structured payload: web_search responses interleave tool blocks,
 // so take the LAST text block (the final JSON) and parse the { ... } object.
-// Also exported so index.mjs can use it to parse the bundled mock response.
+// Also exported so index.mjs can use it to parse the bundled test-data response.
 export function parseClaudeResponse(raw) {
   const textBlock = raw.content?.findLast(b => b.type === "text");
   if (!textBlock) throw new Error("No text block in response");

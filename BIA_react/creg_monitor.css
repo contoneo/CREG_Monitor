@@ -88,27 +88,10 @@ body {
   margin-bottom: 1rem;
 }
 .card-mb { margin-bottom: 1rem; }
-.card-subtitle { font-size: 13px; color: var(--text2); margin-bottom: 12px; }
 .card-hint { font-size: 12px; color: var(--text3); margin-top: 6px; }
 .h2-panel { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text3); margin-bottom: 16px; }
 .h2-sm { font-size: 15px; font-weight: 500; margin-bottom: 4px; }
 .h2-md { font-size: 15px; font-weight: 500; margin-bottom: 12px; }
-
-/* ── Metrics (dashboard) ── */
-.metrics {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 12px;
-  margin-bottom: 1.5rem;
-}
-.metric {
-  background: var(--surface2);
-  border-radius: var(--radius);
-  padding: 1rem;
-  text-align: center;
-}
-.metric .val { font-size: 26px; font-weight: 600; line-height: 1.2; color: var(--blue); }
-.metric .lbl { font-size: 12px; color: var(--text2); margin-top: 4px; }
 
 /* ── Buttons ── */
 .btn {
@@ -126,15 +109,6 @@ body {
 .btn-primary:hover { background: #333; }
 .btn-primary.loading { background: var(--red-bg); color: var(--red-text); }
 .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
-
-/* ── Empty state ── */
-.empty {
-  text-align: center; padding: 2.5rem 1rem;
-  color: var(--text2); font-size: 14px;
-}
-.empty .icon { font-size: 28px; margin-bottom: 10px; }
-.empty-title { font-weight: 500; margin-bottom: 4px; }
-.empty-hint { font-size: 13px; color: var(--text3); }
 
 /* ── Topic grid (config) ── */
 .topic-grid {
@@ -158,8 +132,6 @@ body {
 .rel-val { font-size: 14px; font-weight: 500; min-width: 30px; }
 input[type=range] { width: 100%; accent-color: var(--blue); }
 
-/* ── Stack (config checkboxes) ── */
-.stack { display: flex; flex-direction: column; gap: 10px; }
 label { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; }
 select {
   padding: 8px 12px;
@@ -177,6 +149,7 @@ select {
 
 /* Search button + date-range pickers */
 .search-controls { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.search-buttons-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .date-fields-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .date-field {
   display: flex; flex-direction: column; gap: 4px;
@@ -191,23 +164,6 @@ select {
   color: var(--text);
   font-size: 0.85rem;
 }
-
-/* ── JSON preview + query button ── */
-.json-preview-row { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 16px; }
-.json-preview {
-  flex: 1;
-  background: var(--surface2);
-  border: 0.5px solid var(--border);
-  border-radius: var(--radius);
-  padding: 10px 14px;
-  font-family: monospace;
-  font-size: 12px;
-  color: var(--text2);
-  white-space: pre-wrap;
-  word-break: break-all;
-}
-.btn-col { display: flex; flex-direction: column; gap: 8px; }
-
 
 /* ── Error ── */
 .error-msg {
@@ -228,35 +184,9 @@ select {
   margin-bottom: 8px;
 }
 
-/* ── Debug ── */
-.debug-block { margin-bottom: 14px; }
-.debug-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-.debug-label { font-size: 12px; font-weight: 500; color: var(--text2); }
-.debug-close {
-  font-size: 11px; padding: 2px 8px; cursor: pointer;
-  border: 0.5px solid var(--border);
-  border-radius: var(--radius);
-  background: transparent; color: var(--text2);
-}
-.debug-pre {
-  background: var(--surface2);
-  border: 0.5px solid var(--border);
-  border-radius: var(--radius);
-  padding: 10px 14px;
-  font-family: monospace; font-size: 11px;
-  color: var(--text2); white-space: pre-wrap;
-  word-break: break-all; max-height: 320px; overflow-y: auto; margin: 0;
-}
-
 /* ── Loading ── */
 .loading-state { text-align: center; padding: 2rem 0; color: var(--text2); font-size: 14px; }
 .loading-icon { margin-bottom: 8px; font-size: 22px; }
-
-/* ── Result metrics ── */
-.result-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
-.result-metric { background: var(--surface2); border-radius: var(--radius); padding: 10px 14px; }
-.result-metric .lbl { font-size: 12px; color: var(--text2); margin: 0 0 4px; }
-.result-metric .val { font-size: 20px; font-weight: 500; margin: 0; }
 
 /* ── Date range bar ── */
 .date-range-bar {
@@ -344,16 +274,6 @@ select {
 .pill-conf-alta  { background: #EAF3DE; color: #3B6D11; }
 .pill-conf-media { background: #FAEEDA; color: #854F0B; }
 .pill-conf-baja  { background: #FAECE7; color: #993C1D; }
-
-/* ── Spinner ── */
-.spinner {
-  display: inline-block; width: 13px; height: 13px;
-  border: 2px solid var(--border-md);
-  border-top-color: var(--blue);
-  border-radius: 50%;
-  animation: spin .6s linear infinite;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
 
 h2 { font-size: 15px; font-weight: 500; }
 

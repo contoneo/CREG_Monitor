@@ -36,17 +36,19 @@ duck-types the response (a `jobId` field means "poll"; otherwise use the result
 directly) so this asymmetry is invisible to `creg_monitor.jsx`. See
 `project/CLAUDE.md` for the full design.
 
-## Current phase — live, with a mock fallback
+## Current phase — live, with a test-data fallback
 
 Both backends call a **live** AI provider by default and keep an
-**interchangeable** stored-JSON mock for offline/deterministic testing, selected
-by the `USE_MOCK` env var (no code edits):
+**interchangeable** stored-JSON test-data response for offline/deterministic
+testing, triggered per-request from the UI — no code edits, no redeploy. The
+"Aplicar Búsqueda con datos de prueba" button beside "Buscar con IA" in
+`creg_monitor.jsx` sends `{ useTestData: true }` on `POST /run-alert`:
 
-- `BIA_react/api.js` `runAlert()` — dispatches through `callApi(...)` to the
-  active provider, or `parseClaudeResponse` of `data/mock_*.json` when
-  `USE_MOCK=1`.
+- `BIA_react/api.js` `runAlert(rango, useTestData)` — dispatches through
+  `callApi(...)` to the active provider, or `parseClaudeResponse` of
+  `test_data_*.json` when `useTestData` is true.
 - `project/lambdas/run-alert` — live `callClaude(await getApiKey(), entrada)`, or
-  bundled `loadMockClaude()` when `USE_MOCK=1`.
+  bundled `loadTestData()` when the request carries `useTestData: true`.
 
 ### Provider selection
 
@@ -60,7 +62,7 @@ switched by `API_PROVIDER`:
 
 Provider call logic lives in `providers/` under each backend — one file per
 provider plus `shared` for `buildSystemPrompt` / `extractJson`. Keep all provider
-files and the mock scaffolding — do **not** remove either as "dead code."
+files and the test-data scaffolding — do **not** remove either as "dead code."
 
 **`BIA_react/providers/`** (`shared.js`, `claude.js`, `ollama.js`) — used by the
 local backend. `API_PROVIDER=ollama` requires Ollama running on `:11434` directly.

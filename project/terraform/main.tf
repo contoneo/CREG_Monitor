@@ -123,7 +123,6 @@ module "api" {
   claude_api_key_ssm_path          = "/${var.project_name}/${var.environment}/claude-api-key"
   sender_email                     = var.sender_email
   allowed_origin                   = "https://${module.frontend.cloudfront_domain}"
-  use_mock                         = var.use_mock
   api_provider                     = var.api_provider
   ollama_base_url                  = var.ollama_base_url
   cf_access_client_id_ssm_path     = "/${var.project_name}/${var.environment}/cf-access-client-id"

@@ -4,14 +4,14 @@
  * Called by:
  *   - React UI (browser)   → POST /run-alert, GET /run-alert-status?jobId=... — see startAsyncJob/handleStatusCheck
  *   - EventBridge Scheduler → direct invoke, event = { periodic: true } — see runSync
- *   - itself                → async self-invoke, event = { worker: true, jobId, entrada } — see runWorker
+ *   - itself                → async self-invoke, event = { worker: true, jobId, entrada, useTestData } — see runWorker
  *
  * performRun() is the shared core: calls the active AI provider (Claude or
- * Ollama, or the bundled mock when USE_MOCK=1), merges the result into the
- * DynamoDB master record (deduplicated union, fresh response wins), emails via
- * SES if warranted, and returns { newItems, emailSent }. Browser calls run it
- * asynchronously (see startAsyncJob's comment for why); periodic calls run it
- * synchronously.
+ * Ollama, or replays the bundled test-data response when the caller passes
+ * useTestData: true), merges the result into the DynamoDB master record
+ * (deduplicated union, fresh response wins), emails via SES if warranted, and
+ * returns { newItems, emailSent }. Browser calls run it asynchronously (see
+ * startAsyncJob's comment for why); periodic calls run it synchronously.
  *
  * Provider selection (API_PROVIDER env var):
  *   claude (default) — Anthropic Messages API + server-side web_search; key from SSM.
@@ -19,7 +19,7 @@
  *                      and Ollama web-search key from SSM; base URL from OLLAMA_BASE_URL.
  *
  * ENTRADA schema:  { Tipos: [], Rango: ["YYYY-MM-DD","YYYY-MM-DD"], Areas: [], Relevancia_min: 1 }
- * RESPONSE schema: { rango_de_fechas, total_documentos, fuentes_consultadas, info,
+ * RESPONSE schema: { rango_de_fechas, total_documentos, fuentes_consultadas,
  *                    documentos: [{numero_nombre, fecha, tipo, area, relevancia, confianza,
  *                                  url_oficial, modifica_a, descripcion}],
  *                    proyectos_en_consulta: [{numero_nombre, fecha, area, url_oficial, descripcion}] }
@@ -50,10 +50,6 @@ const CF_ACCESS_CLIENT_ID_SSM_PATH    = process.env.CF_ACCESS_CLIENT_ID_SSM_PATH
 const CF_ACCESS_CLIENT_SECRET_SSM_PATH = process.env.CF_ACCESS_CLIENT_SECRET_SSM_PATH;
 const OLLAMA_API_KEY_SSM_PATH         = process.env.OLLAMA_API_KEY_SSM_PATH;
 
-// Live Claude is the DEFAULT. The mock runs only when USE_MOCK is exactly the
-// string "1"; unset or any other value (true, 0, yes…) → live provider call.
-const USE_MOCK = process.env.USE_MOCK === "1";
-
 // Job records auto-expire via DynamoDB TTL — they're transient status, not
 // part of the accumulated master record.
 const JOB_TTL_SECONDS = 3600;
@@ -72,9 +68,11 @@ let cachedOllamaApiKey    = null;
 // Mirror of the email `pattern` on the recipient input in creg_monitor.jsx.
 const EMAIL_RE = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
-// Stored-JSON test mode (USE_MOCK=1): a canned Anthropic response bundled with
-// the function, replayed instead of a live provider call. Keep — not dead code.
-const MOCK_FILE = new URL("./mock_2025-12-01_2026-06-04.json", import.meta.url);
+// Stored test-data mode: a canned Anthropic response bundled with the
+// function, replayed instead of a live provider call when the caller passes
+// useTestData: true (see the "Aplicar Búsqueda con datos de prueba" button in
+// creg_monitor.jsx). Keep — not dead code.
+const TEST_FILE = new URL("./test_data_2025-12-01_2026-06-04.json", import.meta.url);
 
 // ── SSM helpers ───────────────────────────────────────────────────────────────
 
@@ -157,8 +155,8 @@ function buildEntrada(config, rango) {
 }
 
 // Reads the bundled canned response instead of calling a live provider.
-async function loadMockClaude() {
-  const raw = JSON.parse(await readFile(MOCK_FILE, "utf8"));
+async function loadTestData() {
+  const raw = JSON.parse(await readFile(TEST_FILE, "utf8"));
   return parseClaudeResponse(raw);
 }
 
@@ -279,13 +277,14 @@ function corsHeaders(origin) {
 
 // ── Core run logic — shared by the periodic (sync) and worker (async) paths ──
 
-// Calls the active provider, merges into the master record, and emails if
+// Calls the active provider (or replays the bundled test data when
+// useTestData is true), merges into the master record, and emails if
 // warranted. Throws on a provider error response (err.isProviderError = true,
 // err.campos_faltantes set) or any other failure.
-async function performRun(entrada, config) {
+async function performRun(entrada, config, useTestData) {
   let aiResult;
-  if (USE_MOCK) {
-    aiResult = await loadMockClaude();
+  if (useTestData) {
+    aiResult = await loadTestData();
   } else if (API_PROVIDER === "ollama") {
     aiResult = await callOllama(
       await getOllamaApiKey(),
@@ -314,7 +313,7 @@ async function performRun(entrada, config) {
   let emailSent = false;
 
   // Send only when alerts are enabled, there are new items, and the
-  // recipient address is valid (same rule as the local mock api.js).
+  // recipient address is valid (same rule as the local BIA_react/api.js).
   if (hasNew && config.enabled && EMAIL_RE.test(config.recipientEmail ?? "")) {
     try {
       await sendNotification(config.recipientEmail, newItems);
@@ -335,7 +334,7 @@ async function performRun(entrada, config) {
 // no 30s integration-timeout ceiling. Keeps the original synchronous contract.
 async function runSync(entrada, config, origin) {
   try {
-    const result = await performRun(entrada, config);
+    const result = await performRun(entrada, config, false);
     return { statusCode: 200, headers: corsHeaders(origin), body: JSON.stringify(result) };
   } catch (err) {
     if (err.isProviderError) {
@@ -355,7 +354,7 @@ async function runSync(entrada, config, origin) {
 // performRun() inline, this writes a "running" job record, fires an async
 // self-invocation (InvocationType "Event" — not subject to that cap) to run
 // it, and returns immediately. The frontend polls GET /run-alert-status.
-async function startAsyncJob(entrada, origin) {
+async function startAsyncJob(entrada, origin, useTestData) {
   const jobId = crypto.randomUUID();
 
   await dynamo.send(new PutItemCommand({
@@ -371,7 +370,7 @@ async function startAsyncJob(entrada, origin) {
   await lambda.send(new InvokeCommand({
     FunctionName: process.env.AWS_LAMBDA_FUNCTION_NAME,
     InvocationType: "Event",
-    Payload: JSON.stringify({ worker: true, jobId, entrada }),
+    Payload: JSON.stringify({ worker: true, jobId, entrada, useTestData }),
   }));
 
   console.log(`Started async job ${jobId}`);
@@ -383,12 +382,12 @@ async function startAsyncJob(entrada, origin) {
 // value, so every failure path must still land in the job record, not just
 // be thrown/logged.
 async function runWorker(event) {
-  const { jobId, entrada } = event;
+  const { jobId, entrada, useTestData } = event;
   const ttl = Math.floor(Date.now() / 1000) + JOB_TTL_SECONDS;
 
   try {
     const config = await getConfig();
-    const result = await performRun(entrada, config);
+    const result = await performRun(entrada, config, useTestData);
     await dynamo.send(new PutItemCommand({
       TableName: RESULTS_TABLE,
       Item: marshall({
@@ -483,7 +482,7 @@ export const handler = async (event) => {
 
     // Browser call via API Gateway — see the "Async job" note in the file
     // header for why this can't just call performRun() synchronously here.
-    return await startAsyncJob(entrada, origin);
+    return await startAsyncJob(entrada, origin, body.useTestData);
 
   } catch (err) {
     console.error("run-alert error:", err);

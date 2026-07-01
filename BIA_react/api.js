@@ -20,7 +20,10 @@ import * as ollama from "./providers/ollama.js";
 const DATA_DIR = new URL("./data/", import.meta.url);
 const CONFIG_FILE = new URL("config.json", DATA_DIR);
 const MASTER_FILE = new URL("master.json", DATA_DIR);
-const MOCK_FILE = new URL("mock_2025-12-01_2026-06-04.json", DATA_DIR);
+// Bundled alongside api.js (not in ./data/) so it's tracked in git and ships
+// the same in every checkout/deploy — see the "Aplicar Búsqueda con datos de
+// prueba" button in creg_monitor.jsx.
+const TEST_FILE = new URL("test_data_2025-12-01_2026-06-04.json", import.meta.url);
 
 // Mirror of the email `pattern` on the recipient input in creg_monitor.jsx.
 const EMAIL_RE = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
@@ -94,11 +97,6 @@ async function writeJson(url, obj) {
 const PROVIDER = process.env.API_PROVIDER === "ollama" ? "ollama" : "claude";
 const apiKey = PROVIDER === "ollama" ? ollama.apiKey : claude.apiKey;
 
-// Data-source toggle. Live provider call by default; `USE_MOCK=1 node api.js`
-// replays the bundled data/mock_*.json offline (no key, no network). The two are
-// fully interchangeable — both yield the same parsed { documentos, proyectos… }.
-const USE_MOCK = process.env.USE_MOCK === "1";
-
 // Unified entry: run the search+extract for the configured PROVIDER and return
 // the parsed { documentos, proyectos_en_consulta, … } payload either way.
 export async function callApi(apiKey, entrada) {
@@ -135,19 +133,23 @@ function buildEntrada(config, rango) {
 // ── Public operations ────────────────────────────────────────────────────────
 
 /**
- * Run one alert: query the configured provider with the config-derived ENTRADA, merge the result
- * into master.json (incoming wins on dupes), and report the items not previously
- * seen. emailSent is a placeholder for the production SES send.
+ * Run one alert: query the configured provider (or replay the bundled test
+ * data) with the config-derived ENTRADA, merge the result into master.json
+ * (incoming wins on dupes), and report the items not previously seen.
+ * emailSent is a placeholder for the production SES send.
  *
  * @param {string[]} [rango] Optional ["YYYY-MM-DD","YYYY-MM-DD"] override from a
  *   UI search; omitted by the periodic job, which uses the buildRango window.
+ * @param {boolean} [useTestData] When true, replays TEST_FILE instead of calling
+ *   the live provider — no key, no network. Triggered by the "Aplicar Búsqueda
+ *   con datos de prueba" button in creg_monitor.jsx.
  * @returns {Promise<{
  *   newItems: { documentos: object[], proyectos_en_consulta: object[] },
  *   emailSent: boolean
  * }>}
  */
-export async function runAlert(rango) {
-  if (!apiKey) {
+export async function runAlert(rango, useTestData) {
+  if (!useTestData && !apiKey) {
     throw new Error(PROVIDER === "ollama"
       ? "OLLAMA_API_KEY is not set — export it before running (see callOllama)."
       : "ANTHROPIC_API_KEY is not set — export it before running (see callClaude).");
@@ -156,8 +158,9 @@ export async function runAlert(rango) {
   const master = await readJson(MASTER_FILE, EMPTY_MASTER);
   const config = await getConfig();
 
-  // const parsed = await readJson(MOCK_FILE);
-  const parsed = await callApi(apiKey, buildEntrada(config, rango));
+  const parsed = useTestData
+    ? claude.parseClaudeResponse(await readJson(TEST_FILE))
+    : await callApi(apiKey, buildEntrada(config, rango));
 
   const incomingDocs = parsed.documentos ?? [];
   const incomingProj = parsed.proyectos_en_consulta ?? [];
@@ -269,8 +272,10 @@ function startServer(port = process.env.PORT || 8787) {
     const { pathname } = new URL(req.url, "http://localhost");
     try {
       if (req.method === "POST" && pathname === "/run-alert") {
-        const { Rango } = await readBody(req);   // optional [start, end] from the UI pickers
-        return send(res, 200, await runAlert(Rango));
+        // Rango: optional [start, end] override from the UI pickers.
+        // useTestData: set by the "Aplicar Búsqueda con datos de prueba" button.
+        const { Rango, useTestData } = await readBody(req);
+        return send(res, 200, await runAlert(Rango, useTestData));
       }
       if (req.method === "POST" && pathname === "/save-config") {
         return send(res, 200, await saveConfig(await readBody(req)));

@@ -1,7 +1,7 @@
 // Browser-side client for the Monitor CREG backend (api.js).
 // Override the base URL with VITE_API_BASE if the backend runs elsewhere.
 
-// In dev, default to the local mock backend. A production build MUST set
+// In dev, default to the local backend. A production build MUST set
 // VITE_API_BASE (to the API Gateway URL) at build time; otherwise fall back to
 // an empty base (same-origin) and warn loudly — never silently call localhost.
 const DEV = import.meta.env?.DEV ?? false;
@@ -57,11 +57,13 @@ async function pollRunAlertStatus(jobId, signal) {
 
 // `rango` is an optional ["YYYY-MM-DD","YYYY-MM-DD"] override from the UI date
 // pickers; omit it and the backend uses its calls_per_month window.
-export async function runAlert(signal, rango) {
+// `useTestData`, set by the "Aplicar Búsqueda con datos de prueba" button,
+// replays the bundled test-data response instead of calling the live provider.
+export async function runAlert(signal, rango, useTestData) {
   const initial = await request("/run-alert", {
     method: "POST",
     signal,
-    body: rango ? JSON.stringify({ Rango: rango }) : undefined,
+    body: (rango || useTestData) ? JSON.stringify({ Rango: rango, useTestData }) : undefined,
   });
   // AWS: POST /run-alert returns { jobId } immediately (see project/CLAUDE.md);
   // the actual result comes from polling. Local dev backend (api.js) returns

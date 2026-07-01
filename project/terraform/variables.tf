@@ -28,16 +28,10 @@ variable "sender_domain" {
 }
 
 variable "claude_api_key" {
-  description = "Anthropic Claude API key — stored in SSM SecureString. Optional while run-alert serves mock data; required once the live Claude call is wired in."
+  description = "Anthropic Claude API key — stored in SSM SecureString. Required for the live Claude call (the UI's \"Aplicar Búsqueda con datos de prueba\" button bypasses it per-request)."
   type        = string
   sensitive   = true
   default     = "default"
-}
-
-variable "use_mock" {
-  description = "When true, run-alert replays the bundled mock JSON (sets the Lambda's USE_MOCK=1, no Claude key needed). When false (default), it makes the live Anthropic call and requires a valid claude_api_key."
-  type        = bool
-  default     = false
 }
 
 variable "api_provider" {

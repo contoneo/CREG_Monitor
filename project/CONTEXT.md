@@ -4,14 +4,17 @@ This document summarizes all architectural decisions made during the initial
 design phase. It is intended to be read by Claude Code to provide full context
 for continuing development without needing the original conversation.
 
-> **Current phase — live, with a mock fallback.** The `run-alert` Lambda calls a
-> live AI provider by default — Anthropic Claude (Messages API + `web_search`) or
-> a local Ollama model reached over a Cloudflare Tunnel, selected by `API_PROVIDER`
-> (see `project/CLAUDE.md` "Provider selection"). The bundled `loadMockClaude()`
-> mock is an **interchangeable** offline fallback, selected by the `USE_MOCK` env
-> var (no code edits). Because live is the default, the active provider's key is
-> **required** (set `USE_MOCK=1` to deploy/run without one). Keep the mock
-> scaffolding and all provider files regardless of which is active.
+> **Current phase — live, with a test-data fallback.** The `run-alert` Lambda
+> calls a live AI provider by default — Anthropic Claude (Messages API +
+> `web_search`) or a local Ollama model reached over a Cloudflare Tunnel,
+> selected by `API_PROVIDER` (see `project/CLAUDE.md` "Provider selection").
+> The bundled `loadTestData()` response is an **interchangeable** offline
+> fallback, selected **per-request** by the browser: the "Aplicar Búsqueda con
+> datos de prueba" button sends `{ useTestData: true }` on `POST /run-alert`
+> (no env var, no redeploy). Because live is the default, the active
+> provider's key is **required** for a normal search (the test-data button
+> needs neither key nor network). Keep the test-data scaffolding and all
+> provider files regardless of which is active.
 >
 > Browser-triggered runs also go through an **async job** (`POST /run-alert`
 > returns a `jobId`, the frontend polls `GET /run-alert-status`) to work around
@@ -25,8 +28,9 @@ for continuing development without needing the original conversation.
 
 A React web application that:
 1. Calls the Anthropic Claude API (server-side via Lambda) to retrieve structured
-   regulatory document data based on configurable filters. *(`USE_MOCK=1` replays
-   a bundled response instead, for offline testing.)*
+   regulatory document data based on configurable filters. *(The "Aplicar
+   Búsqueda con datos de prueba" button replays a bundled response instead,
+   for offline testing.)*
 2. Stores the accumulated results in a single DynamoDB "master record" that is
    the union of all API responses, deduplicated by `numero_nombre`.
 3. Sends a notification email via SES when new regulatory documents or projects
@@ -46,7 +50,7 @@ React App (S3 + CloudFront)
   │                              ⤷ async self-invoke worker:
   │                                  → SSM (provider key, server-side only)
   │                                  → DynamoDB config table (read config + ENTRADA)
-  │                                  → AI provider — Claude or Ollama [MOCK: bundled file]
+  │                                  → AI provider — Claude or Ollama [or bundled test-data file]
   │                                  → DynamoDB results table (merge master + write job status)
   │                                  → SES (if new items detected)
   │
@@ -72,9 +76,10 @@ EventBridge Scheduler (cron)
   Rango dates (a UI search may override `Rango` via `{ Rango }` in the body)
 - `performRun()` — shared by both trigger paths — gets the structured response
   (live provider call, `API_PROVIDER=claude|ollama`, or bundled
-  `loadMockClaude()` when `USE_MOCK=1`), validates it, finds new items vs. the
-  master record by **normalized** `numero_nombre`, merges as a deduplicated
-  union (fresh response wins), and emails via SES if warranted
+  `loadTestData()` when the request carries `useTestData: true`), validates
+  it, finds new items vs. the master record by **normalized** `numero_nombre`,
+  merges as a deduplicated union (fresh response wins), and emails via SES if
+  warranted
 - **Periodic** (EventBridge): runs `performRun()` synchronously and returns
   `{ newItems, emailSent }` directly — no API Gateway involved, no timeout cap
 - **Browser** (API Gateway): API Gateway's HTTP API caps integration timeouts at
@@ -119,7 +124,6 @@ EventBridge Scheduler (cron)
   "rango_de_fechas": ["YYYY-MM-DD", "YYYY-MM-DD"],
   "total_documentos": 5,
   "fuentes_consultadas": ["https://..."],
-  "info": "corta descripción de la consulta",
   "documentos": [{
     "numero_nombre": "str",
     "fecha": "YYYY-MM-DD",
@@ -257,10 +261,13 @@ export TF_VAR_cf_access_client_secret="..."         # → SSM (ollama + CF Acces
 export TF_VAR_sender_email="..."                    # → Lambda env var + SES identity
 ```
 Non-secret config (including `api_provider`, `ollama_base_url`) goes in
-`terraform/terraform.tfvars` (safe to commit). `sender_email` is always
-required (SES identity); the active provider's key is required unless
-`USE_MOCK=1`. See `project/CLAUDE.md` / `README.md` for the Ollama + Cloudflare
-Tunnel setup.
+`terraform/terraform.tfvars`, copied from the tracked `terraform.tfvars.example`
+template — `terraform.tfvars` itself is gitignored (it's environment-specific,
+not because it holds secrets; secrets go through the `TF_VAR_*` env vars
+above). `sender_email` is always required (SES identity); the active
+provider's key is required for a normal search (the "Aplicar Búsqueda con
+datos de prueba" button needs neither). See `project/CLAUDE.md` / `README.md`
+for the Ollama + Cloudflare Tunnel setup.
 
 ---
 
@@ -278,7 +285,7 @@ CloudFront. Behaviors relevant to the backend contract:
   `saveConfig()`. The save is **debounced (~600 ms)** so slider drags and typing
   collapse into a single request, and a mount guard prevents a save firing before
   the initial `getConfig()` load completes.
-- **Search ("Buscar ahora")** — calls `runAlert()`, reads `{ newItems, emailSent }`,
+- **Search ("Buscar con IA")** — calls `runAlert()`, reads `{ newItems, emailSent }`,
   then **always** re-fetches the master with `getMasterJson()` and refreshes the
   table (so it reflects stored state even when nothing new was found). The notice
   differs for new vs. none and surfaces whether the email was sent. The in-flight
@@ -294,7 +301,7 @@ The deployed frontend is **`BIA_react/`** (Vite). Its client is
 - `getMasterJson()`      → GET  /get-master-json  (called on app startup)
 - `getConfig()`          → GET  /get-config
 - `saveConfig(config)`   → POST /save-config
-- `runAlert(signal?)`    → POST /run-alert  (returns `{ newItems, emailSent }`)
+- `runAlert(signal?, rango?, useTestData?)` → POST /run-alert (returns `{ newItems, emailSent }`)
 - `resetMaster()`        → POST /reset-master  (resets accumulated data to empty; "🗑 Restablecer datos" button in header)
 
 The base URL comes from **`VITE_API_BASE`** (a Vite var — `REACT_APP_*` is
@@ -306,7 +313,7 @@ ignored). Set it to the `api_gateway_url` output **at build time**, build to
 > (A legacy CRA-style `project/src/api.js` client used to live here; it was
 > removed — the deployed app is `BIA_react/` and uses `api.client.js`.)
 >
-> During local validation the same UI runs against the mock backend
+> During local validation the same UI runs against the local backend
 > (`BIA_react/api.js`, served on `VITE_API_BASE=http://localhost:8787`), which
 > mirrors these five endpoints from local JSON (it has no API Gateway in front
 > of it, so `POST /run-alert` returns synchronously and `GET /run-alert-status`
@@ -346,8 +353,8 @@ ignored). Set it to the `api_gateway_url` output **at build time**, build to
    before upload: `grep -c -F 'localhost:8787' dist/assets/*.js` → `0`. After
    `aws s3 sync` + CloudFront invalidation, hard-reload; the hashed JS filename
    should change (if not, you're seeing a cached object).
-7. **run-alert mock file must be bundled** — the `USE_MOCK=1` path
-   (`loadMockClaude()`) reads `mock_2025-12-01_2026-06-04.json` from the function
-   dir. It's zipped by the `archive_file` in `modules/api`; if it's missing from
-   the zip, `USE_MOCK` runs 500
-   with `ENOENT`. `terraform apply` repackages on source change.
+7. **run-alert test-data file must be bundled** — the `useTestData: true` path
+   (`loadTestData()`) reads `test_data_2025-12-01_2026-06-04.json` from the
+   function dir. It's zipped by the `archive_file` in `modules/api`; if it's
+   missing from the zip, a test-data request fails with `ENOENT`. `terraform
+   apply` repackages on source change.

@@ -17,7 +17,8 @@ React App (S3 + CloudFront)
   ├─ GET  /run-alert-status → Lambda: run-alert (same fn, polled until job is done/error)
   ├─ POST /save-config     → Lambda: save-config → DynamoDB config table
   ├─ GET  /get-config      → Lambda: save-config → DynamoDB config table
-  └─ GET  /get-master-json → Lambda: get-master-json → DynamoDB results table
+  ├─ GET  /get-master-json → Lambda: get-master-json → DynamoDB results table
+  └─ POST /reset-master    → Lambda: get-master-json → resets the master record to empty
 
 EventBridge Scheduler (cron)
   └─ direct Lambda invoke, event: { periodic: true } — runs synchronously,
@@ -40,7 +41,7 @@ it invokes the Lambda directly and keeps running synchronously.
 |---|---|---|
 | `run-alert` | API GW + EventBridge | Call AI provider (Claude or Ollama) → merge master → detect new items → email if needed |
 | `save-config` | API GW | Read/write alert config (Tipos, Areas, Rango, calls_per_month, etc.) |
-| `get-master-json` | API GW | Return the single master results record |
+| `get-master-json` | API GW | Return the single master results record; reset it to empty on `POST /reset-master` |
 
 ## DynamoDB tables
 
@@ -112,15 +113,12 @@ export TF_VAR_claude_api_key="sk-ant-..."
 export TF_VAR_sender_email="alerts@yourdomain.com"
 ```
 
-**Run mode — live vs. mock.** By default `run-alert` makes the **live** provider
-call. To deploy in **mock mode** (replays the bundled JSON, no key needed):
-
-```bash
-export TF_VAR_use_mock=true     # run-alert Lambda gets USE_MOCK=1
-```
-
-`use_mock` defaults to `false`. (Setting a shell `USE_MOCK` var does nothing;
-only `TF_VAR_use_mock` reaches the Lambda.)
+**Run mode — live vs. test data.** By default `run-alert` makes the **live**
+provider call. Test-data mode (replays the bundled JSON, no key needed) is a
+**per-request** choice made from the UI, not a deploy-time setting: click
+"Aplicar Búsqueda con datos de prueba" in the app, or `POST /run-alert` with
+`{ "useTestData": true }`. No Terraform variable or Lambda redeploy needed to
+switch between the two.
 
 **Provider selection.** Set `api_provider` in `terraform.tfvars` (or via
 `TF_VAR_api_provider`):
@@ -209,19 +207,27 @@ worth knowing:
   (hydrate the config tab).
 - Config edits auto-save through `saveConfig()`, **debounced (~600 ms)** so rapid
   edits collapse into one request.
-- "Buscar ahora" calls `runAlert()` and reads `{ newItems, emailSent }`: it
+- "Buscar con IA" calls `runAlert()` and reads `{ newItems, emailSent }`: it
   refreshes the table from `getMasterJson()` when there are new items and tells
   the user whether the alert email was sent. The request is cancellable via an
   `AbortController`. On AWS, `runAlert()` may take up to several minutes with
   the Ollama provider — it polls an async job behind the scenes (see "Async
   job" above); the caller doesn't need to know or do anything differently.
+  The neighboring "Aplicar Búsqueda con datos de prueba" button calls the same
+  `runAlert()` with `useTestData: true`, replaying the bundled test-data
+  response instead of calling the live provider — no key, no network needed.
+  It still goes through the same async-job wrapping on AWS (every browser call
+  does), but since `loadTestData()` resolves almost instantly, the poll usually
+  settles on its first or second round-trip.
 - The recipient email field uses the same validity regex as the backend, so the
   UI and the `run-alert` Lambda agree on when an email is actually sent.
+- "🗑 Restablecer datos" calls `resetMaster()`, discarding all accumulated
+  documents/proyectos back to the empty shape.
 
 Build it and upload the output to S3 after `terraform apply` (see step 6 above).
 
 ```js
-import { runAlert, saveConfig, getConfig, getMasterJson } from './api.client';
+import { runAlert, saveConfig, getConfig, getMasterJson, resetMaster } from './api.client';
 
 // On app startup — load all accumulated data
 const master = await getMasterJson();
@@ -240,20 +246,25 @@ await saveConfig({
   enabled:        true,
 });
 
-// Trigger an alert run (uses saved config, no override)
+// Trigger an alert run (uses the saved config's calls_per_month window)
 const result = await runAlert();
 // result.newItems.documentos            → new documents found
 // result.newItems.proyectos_en_consulta → new projects found
 // result.emailSent                      → true only if alerts enabled,
 //                                          new items found, AND recipientEmail valid
 
-// Trigger with overridden ENTRADA
-const result2 = await runAlert({
-  Tipos:  ["Acuerdo"],
-  Rango:  ["2025-01-01", "2025-06-01"],
-  Areas:  ["Pensiones"],
-  Relevancia_min: 2,
-});
+// `signal` is an optional AbortController().signal that backs the "Detener"
+// button; pass undefined if you don't need to cancel the request.
+
+// Trigger with an explicit date-range override (e.g. from the UI's date pickers)
+const result2 = await runAlert(undefined, ["2025-01-01", "2025-06-01"]);
+
+// Trigger the "Aplicar Búsqueda con datos de prueba" path: replays the bundled
+// test-data response instead of calling the live provider (no key, no network)
+const result3 = await runAlert(undefined, undefined, /* useTestData */ true);
+
+// Discard all accumulated documents/proyectos back to the empty shape
+const empty = await resetMaster();
 ```
 
 ---

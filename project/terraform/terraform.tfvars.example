@@ -14,10 +14,6 @@ sender_email        = "alerts@yourdomain.com"
 sender_domain       = "yourdomain.com"
 schedule_expression = "rate(1 hour)"
 
-# Run mode for run-alert: false (default) = live provider call; true = mock.
-# Or set TF_VAR_use_mock=true.
-use_mock            = false
-
 # AI provider: "claude" (default) or "ollama" (local model via Cloudflare Tunnel).
 # Pass secrets via TF_VAR_* env vars — never commit them.
 api_provider        = "claude"

@@ -16,8 +16,9 @@ node api.js test # One-shot: run one alert and print the result
 ANTHROPIC_API_KEY=sk-ant-... npm run backend
 # Ollama provider (local model, requires Ollama running on :11434):
 API_PROVIDER=ollama OLLAMA_API_KEY=... npm run backend
-# Mock mode (no key, no network, replays stored response):
-USE_MOCK=1 npm run backend
+# Test-data mode (no key, no network, replays a stored response): click
+# "Aplicar Búsqueda con datos de prueba" in the UI, or POST /run-alert with
+# { "useTestData": true }.
 
 # Provider test scripts (tmp/):
 OLLAMA_API_KEY=... node tmp/ollama-test.mjs   # callApi via Ollama (parse only)
@@ -28,16 +29,19 @@ There is no test suite. Run `dev` and `backend` together during development.
 
 ## Run modes — live provider vs. stored JSON
 
-`runAlert` in `api.js` has two **interchangeable** data sources, selected at
-runtime by `USE_MOCK` (no code edits):
+`runAlert(rango, useTestData)` in `api.js` has two **interchangeable** data
+sources, selected per-request by the `useTestData` flag (no code edits, no
+restart) — set by the "Aplicar Búsqueda con datos de prueba" button beside
+"Buscar con IA" in `creg_monitor.jsx`:
 
 - **Live (default):** `callApi(apiKey, …)` dispatches to the active provider
   (Claude or Ollama — see **Provider selection** below) and returns real, current
   CREG documents. Requires the provider's key env var. Each run hits the network
   and bills tokens/resources.
-- **Mock (`USE_MOCK=1`):** replays the bundled `data/mock_*.json` — no key, no
-  network, deterministic. The mock file is a raw Anthropic message, so it goes
-  through the same `parseClaudeResponse`, yielding the identical shape.
+- **Test data (`useTestData: true`):** replays the bundled
+  `test_data_2025-12-01_2026-06-04.json` (tracked in git, next to `api.js`) — no
+  key, no network, deterministic. The file is a raw Anthropic message, so it
+  goes through the same `parseClaudeResponse`, yielding the identical shape.
 
 Either source produces the same parsed `{ documentos, proyectos_en_consulta, … }`,
 is merged into `data/master.json` (incoming wins on dupes), and returns the same
@@ -73,9 +77,12 @@ only to the local backend over five HTTP endpoints; `api.js` owns the AI search.
 
 ## Architecture
 
-- **Frontend** — `creg_monitor.jsx`, a single React 19 component built with
-  Vite 8. `index.html` mounts `#root`; the JSX calls `createRoot` directly.
-  Styles in `creg_monitor.css`.
+- **Frontend** — `creg_monitor.jsx`: `CREGMonitor`, the single top-level React
+  19 component (state, effects, handlers), plus small presentational
+  sub-components above it in the same file (`SortIcon`, `ThSort`,
+  `DocumentosTable`, `ProyectosTable`, `FuentesList`) that just render props —
+  no state of their own. Built with Vite 8; `index.html` mounts `#root` and the
+  JSX calls `createRoot` directly. Styles in `creg_monitor.css`.
 - **Client** — `api.client.js`: browser fetch wrapper exposing `runAlert(signal)`,
   `saveConfig(config)`, `getConfig()`, `getMasterJson()`. Base URL from
   `VITE_API_BASE`. In **dev** it falls back to `http://localhost:8787`; a
@@ -91,16 +98,17 @@ only to the local backend over five HTTP endpoints; `api.js` owns the AI search.
   completely unaware of the difference.
 - **Backend** — `api.js`: a Node HTTP server (port `8787`) implementing the five
   endpoints. The config/master endpoints read/write JSON in `data/`; `run-alert`
-  dispatches through `callApi` to the active provider (or replays mock JSON).
-  `node api.js test` runs one alert.
+  dispatches through `callApi` to the active provider (or replays the bundled
+  test-data JSON when `useTestData` is set). `node api.js test` runs one alert.
 - **Providers** — `providers/claude.js`, `providers/ollama.js`,
   `providers/shared.js`: all AI call logic, one file per provider. `api.js`
   imports both and selects at runtime via `API_PROVIDER`.
 
 ## HTTP contract (mirrors the AWS Lambdas in `project/`)
 
-- `POST /run-alert` → dispatches to the active provider (live or mock), merges
-  into `data/master.json`, returns `{ newItems: { documentos, proyectos_en_consulta }, emailSent }`.
+- `POST /run-alert` → dispatches to the active provider (live or, with
+  `{ useTestData: true }`, the bundled test-data response), merges into
+  `data/master.json`, returns `{ newItems: { documentos, proyectos_en_consulta }, emailSent }`.
   An optional `{ Rango }` in the request body overrides the date window (the UI date pickers).
 - `POST /save-config` → writes `data/config.json`.
 - `GET  /get-config` → reads `data/config.json` (or `null`).
@@ -124,29 +132,33 @@ backend agree). Both `saveConfig` and `runAlert` log changes to the console
 - **Config auto-save**: a debounced (~600 ms) effect persists any config change
   via `saveConfig()`; a `configInitialized` ref prevents saving during the
   initial load. The query **date range is not persisted** — see Search.
-- **Search** ("Buscar ahora"): `handleSearch` calls
-  `runAlert(signal, [fechaInicio, fechaFin])`, passing the date-picker range as a
-  per-request override (`{ Rango }`); it then **always** re-fetches the master
-  with `getMasterJson()` and refreshes the table (so it reflects stored state
-  even when nothing new was found). The pickers default from a client-side
-  `buildRango` (the `calls_per_month` window) and are user-overridable. The
-  notice differs for new items vs none and reports whether the alert email was
-  sent. An `AbortController` (`abortRef`) backs the "Detener" button.
+- **Search** ("Buscar con IA" / "Aplicar Búsqueda con datos de prueba"):
+  `handleSearch(useTestData)` calls
+  `runAlert(signal, [fechaInicio, fechaFin], useTestData)`, passing the
+  date-picker range as a per-request override (`{ Rango }`) and, from the
+  test-data button, `{ useTestData: true }`; it then **always** re-fetches the
+  master with `getMasterJson()` and refreshes the table (so it reflects stored
+  state even when nothing new was found). The pickers default from a
+  client-side `buildRango` (the `calls_per_month` window) and are
+  user-overridable. The notice differs for new items vs none and reports
+  whether the alert email was sent. An `AbortController` (`abortRef`) backs the
+  "Detener" button for both search buttons.
 
 ## Stored-JSON scaffolding — do not remove
 
 The stored-JSON path is a supported testing mode, not dead code: keep
-`MOCK_FILE`, the `readJson` fallback in `runAlert`, and the bundled
-`data/mock_*.json`. The unused `SYSTEM_PROMPT` const in `creg_monitor.jsx` is
-also kept (the live prompt now lives in `providers/shared.js`
-`buildSystemPrompt`); its unused-var lint is acceptable — do not delete it or
-add an eslint-disable.
+`TEST_FILE`, the `readJson`/`parseClaudeResponse` path in `runAlert`, and the
+bundled `test_data_2025-12-01_2026-06-04.json` (tracked in git, next to
+`api.js`, so it ships identically to every checkout and to the AWS Lambda —
+see `project/CLAUDE.md`).
 
 ## Not tracked in git
 
-`data/` (runtime state + mock/seed JSON, kept on disk), `grounding_data/`
-(dev/research artifacts), `tmp/` (provider test scripts), `node_modules/`,
-`dist/`, `.env.production`, and `API-keys` are gitignored.
+`data/` (runtime state, kept on disk), `grounding_data/` (dev/research
+artifacts), `tmp/` (provider test scripts), `node_modules/`, `dist/`,
+`.env.production`, and `API-keys` are gitignored. `test_data_2025-12-01_2026-06-04.json`
+lives outside `data/`, at the top of `BIA_react/`, specifically so it stays
+tracked in git.
 
 ## Response JSON schema (per document)
 
