@@ -391,6 +391,9 @@ function CREGMonitor() {
                 Aplicar Búsqueda con datos de prueba
               </button>
             </div>
+            {(!tipos.length || !areas.length) && (
+              <p className="card-hint hint-important">Debe habilitar al menos un Área de interés y un Tipo de documentos para efectuar la búsqueda</p>
+            )}
             <div className="date-fields-row">
               <label className="date-field">
                 <span>Desde</span>
@@ -553,6 +556,7 @@ function CREGMonitor() {
               pattern="[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}"
               onChange={e => setEmailRecipient(e.target.value)}
             />
+            <p className="card-hint hint-important">Sin un destinatario de alertas, no se enviará el email al cumplirse el job</p>
           </div>
         </div>
       </div>
