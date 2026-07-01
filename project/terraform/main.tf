@@ -51,6 +51,40 @@ resource "aws_ssm_parameter" "claude_api_key" {
   }
 }
 
+# ── SSM: Ollama / Cloudflare Access secrets ───────────────────────────────────
+resource "aws_ssm_parameter" "ollama_api_key" {
+  name        = "/${var.project_name}/${var.environment}/ollama-api-key"
+  description = "Ollama hosted web-search API key"
+  type        = "SecureString"
+  value       = var.ollama_api_key
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
+resource "aws_ssm_parameter" "cf_access_client_id" {
+  name        = "/${var.project_name}/${var.environment}/cf-access-client-id"
+  description = "Cloudflare Access service-token client ID for the Ollama tunnel"
+  type        = "SecureString"
+  value       = var.cf_access_client_id
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
+resource "aws_ssm_parameter" "cf_access_client_secret" {
+  name        = "/${var.project_name}/${var.environment}/cf-access-client-secret"
+  description = "Cloudflare Access service-token client secret for the Ollama tunnel"
+  type        = "SecureString"
+  value       = var.cf_access_client_secret
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
 # ── Modules ───────────────────────────────────────────────────────────────────
 module "iam" {
   source         = "./modules/iam"
@@ -79,17 +113,22 @@ module "frontend" {
 }
 
 module "api" {
-  source                  = "./modules/api"
-  project_name            = var.project_name
-  environment             = var.environment
-  aws_region              = var.aws_region
-  lambda_exec_role_arn    = module.iam.lambda_exec_role_arn
-  config_table_name       = module.storage.config_table_name
-  results_table_name      = module.storage.results_table_name
-  claude_api_key_ssm_path = "/${var.project_name}/${var.environment}/claude-api-key"
-  sender_email            = var.sender_email
-  allowed_origin          = "https://${module.frontend.cloudfront_domain}"
-  use_mock                = var.use_mock
+  source                           = "./modules/api"
+  project_name                     = var.project_name
+  environment                      = var.environment
+  aws_region                       = var.aws_region
+  lambda_exec_role_arn             = module.iam.lambda_exec_role_arn
+  config_table_name                = module.storage.config_table_name
+  results_table_name               = module.storage.results_table_name
+  claude_api_key_ssm_path          = "/${var.project_name}/${var.environment}/claude-api-key"
+  sender_email                     = var.sender_email
+  allowed_origin                   = "https://${module.frontend.cloudfront_domain}"
+  use_mock                         = var.use_mock
+  api_provider                     = var.api_provider
+  ollama_base_url                  = var.ollama_base_url
+  cf_access_client_id_ssm_path     = "/${var.project_name}/${var.environment}/cf-access-client-id"
+  cf_access_client_secret_ssm_path = "/${var.project_name}/${var.environment}/cf-access-client-secret"
+  ollama_api_key_ssm_path          = "/${var.project_name}/${var.environment}/ollama-api-key"
 }
 
 module "scheduler" {

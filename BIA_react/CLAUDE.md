@@ -69,7 +69,7 @@ filters (document types, areas, minimum relevance, alert email/frequency) and
 view an accumulating list of regulatory documents and projects-in-consultation.
 
 The app does **not** call any AI provider from the browser. The frontend talks
-only to the local backend over four HTTP endpoints; `api.js` owns the AI search.
+only to the local backend over five HTTP endpoints; `api.js` owns the AI search.
 
 ## Architecture
 
@@ -83,7 +83,13 @@ only to the local backend over four HTTP endpoints; `api.js` owns the AI search.
   time — otherwise it uses an empty (same-origin) base and logs an error rather
   than silently calling localhost. Vite only reads `VITE_*` vars, and the build
   output is `dist/` (see `project/README.md` for the deploy command).
-- **Backend** — `api.js`: a Node HTTP server (port `8787`) implementing the four
+  `runAlert()` duck-types its `POST /run-alert` response: a `jobId` field means
+  the AWS backend started an async job (see `project/CLAUDE.md` "async job"
+  section) and it polls `GET /run-alert-status?jobId=...` every 3s (abortable,
+  ~330s cap) until `done`/`error`; otherwise (local dev backend) it uses the
+  `{ newItems, emailSent }` result directly. This keeps `creg_monitor.jsx`
+  completely unaware of the difference.
+- **Backend** — `api.js`: a Node HTTP server (port `8787`) implementing the five
   endpoints. The config/master endpoints read/write JSON in `data/`; `run-alert`
   dispatches through `callApi` to the active provider (or replays mock JSON).
   `node api.js test` runs one alert.

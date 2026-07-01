@@ -1,9 +1,9 @@
-variable "project_name"         {}
-variable "environment"          {}
-variable "scheduler_role_arn"   {}
-variable "scheduler_role_name"  {}
+variable "project_name" {}
+variable "environment" {}
+variable "scheduler_role_arn" {}
+variable "scheduler_role_name" {}
 variable "run_alert_lambda_arn" {}
-variable "schedule_expression"  {}
+variable "schedule_expression" {}
 
 # EventBridge Scheduler → invokes the run-alert Lambda directly.
 #

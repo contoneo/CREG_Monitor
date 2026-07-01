@@ -1,5 +1,5 @@
 variable "project_name" {}
-variable "environment"  {}
+variable "environment" {}
 
 resource "random_id" "suffix" { byte_length = 4 }
 
@@ -96,6 +96,6 @@ resource "aws_s3_bucket_policy" "frontend" {
   })
 }
 
-output "bucket_name"       { value = aws_s3_bucket.frontend.id }
+output "bucket_name" { value = aws_s3_bucket.frontend.id }
 output "cloudfront_domain" { value = aws_cloudfront_distribution.frontend.domain_name }
-output "distribution_id"   { value = aws_cloudfront_distribution.frontend.id }
+output "distribution_id" { value = aws_cloudfront_distribution.frontend.id }

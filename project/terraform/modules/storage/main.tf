@@ -1,5 +1,5 @@
 variable "project_name" {}
-variable "environment"  {}
+variable "environment" {}
 
 # ── Config table ──────────────────────────────────────────────────────────────
 resource "aws_dynamodb_table" "config" {
@@ -21,22 +21,25 @@ resource "aws_dynamodb_table_item" "default_config" {
   hash_key   = aws_dynamodb_table.config.hash_key
 
   item = jsonencode({
-    configKey      = { S = "alert-config" }
-    recipientEmail = { S = "" }
-    Tipos          = { L = [] }
-    Areas          = { L = [] }
-    Relevancia_min = { N = "1" }
+    configKey       = { S = "alert-config" }
+    recipientEmail  = { S = "" }
+    Tipos           = { L = [] }
+    Areas           = { L = [] }
+    Relevancia_min  = { N = "1" }
     calls_per_month = { N = "3" }
-    enabled        = { BOOL = false }
-    updatedAt      = { S = "never" }
+    enabled         = { BOOL = false }
+    updatedAt       = { S = "never" }
   })
 
   lifecycle { ignore_changes = [item] }
 }
 
 # ── Results table ─────────────────────────────────────────────────────────────
-# Stores a SINGLE master record (resultKey = "master") that is the
-# union of all Claude API responses deduplicated by numero_nombre.
+# Stores a SINGLE master record (resultKey = "master") — the union of all AI
+# provider responses, deduplicated by numero_nombre — plus transient async-job
+# status records (resultKey = "job#<uuid>", see project/CLAUDE.md "Async job
+# pattern"). The `ttl` attribute auto-expires job records; master/config items
+# never set `ttl`, so they're unaffected.
 resource "aws_dynamodb_table" "results" {
   name         = "${var.project_name}-${var.environment}-results"
   billing_mode = "PAY_PER_REQUEST"
@@ -45,6 +48,11 @@ resource "aws_dynamodb_table" "results" {
   attribute {
     name = "resultKey"
     type = "S"
+  }
+
+  ttl {
+    attribute_name = "ttl"
+    enabled        = true
   }
 
   point_in_time_recovery { enabled = true }
@@ -56,18 +64,18 @@ resource "aws_dynamodb_table_item" "master_record" {
   hash_key   = aws_dynamodb_table.results.hash_key
 
   item = jsonencode({
-    resultKey              = { S = "master" }
-    rango_de_fechas        = { L = [] }
-    fuentes_consultadas    = { L = [] }
-    documentos             = { L = [] }
-    proyectos_en_consulta  = { L = [] }
-    lastUpdated            = { S = "never" }
+    resultKey             = { S = "master" }
+    rango_de_fechas       = { L = [] }
+    fuentes_consultadas   = { L = [] }
+    documentos            = { L = [] }
+    proyectos_en_consulta = { L = [] }
+    lastUpdated           = { S = "never" }
   })
 
   lifecycle { ignore_changes = [item] }
 }
 
-output "config_table_name"  { value = aws_dynamodb_table.config.name }
+output "config_table_name" { value = aws_dynamodb_table.config.name }
 output "results_table_name" { value = aws_dynamodb_table.results.name }
-output "config_table_arn"   { value = aws_dynamodb_table.config.arn }
-output "results_table_arn"  { value = aws_dynamodb_table.results.arn }
+output "config_table_arn" { value = aws_dynamodb_table.config.arn }
+output "results_table_arn" { value = aws_dynamodb_table.results.arn }

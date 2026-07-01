@@ -2,21 +2,21 @@
  * Lambda: run-alert
  *
  * Called by:
- *   - React UI  → POST /run-alert via API Gateway (body may include { Rango } from the date pickers)
- *   - EventBridge Scheduler → direct Lambda invoke, event = { periodic: true }
- *     (Scheduler can't POST to an HTTP endpoint; it invokes this function directly,
- *      so the payload is the raw `event`, not `event.body`.)
+ *   - React UI (browser)   → POST /run-alert, GET /run-alert-status?jobId=... — see startAsyncJob/handleStatusCheck
+ *   - EventBridge Scheduler → direct invoke, event = { periodic: true } — see runSync
+ *   - itself                → async self-invoke, event = { worker: true, jobId, entrada } — see runWorker
  *
- * Flow:
- *   1. Read config from DynamoDB (config table)
- *   2. Build ENTRADA from saved config; a UI search may override Rango via body.Rango
- *   3. Call Claude live (web_search enabled). loadMockClaude() is kept as an offline fallback.
- *   4. Validate response schema
- *   5. Compare with master record in DynamoDB → find new items (normalized key)
- *   6. Merge into master record (deduplicated union, fresh response wins)
- *   7. If new items found and alerts enabled with a valid recipient → email via
- *      SES (failure is caught and logged, does not fail the run)
- *   8. Return { newItems, emailSent }
+ * performRun() is the shared core: calls the active AI provider (Claude or
+ * Ollama, or the bundled mock when USE_MOCK=1), merges the result into the
+ * DynamoDB master record (deduplicated union, fresh response wins), emails via
+ * SES if warranted, and returns { newItems, emailSent }. Browser calls run it
+ * asynchronously (see startAsyncJob's comment for why); periodic calls run it
+ * synchronously.
+ *
+ * Provider selection (API_PROVIDER env var):
+ *   claude (default) — Anthropic Messages API + server-side web_search; key from SSM.
+ *   ollama           — Local qwen3:32b via Cloudflare Tunnel + Access; CF service token
+ *                      and Ollama web-search key from SSM; base URL from OLLAMA_BASE_URL.
  *
  * ENTRADA schema:  { Tipos: [], Rango: ["YYYY-MM-DD","YYYY-MM-DD"], Areas: [], Relevancia_min: 1 }
  * RESPONSE schema: { rango_de_fechas, total_documentos, fuentes_consultadas, info,
@@ -30,40 +30,84 @@ import { SSMClient, GetParameterCommand }       from "@aws-sdk/client-ssm";
 import { DynamoDBClient, GetItemCommand,
          PutItemCommand }                        from "@aws-sdk/client-dynamodb";
 import { SESClient, SendEmailCommand }           from "@aws-sdk/client-ses";
+import { LambdaClient, InvokeCommand }           from "@aws-sdk/client-lambda";
 import { marshall, unmarshall }                  from "@aws-sdk/util-dynamodb";
 import { readFile }                              from "node:fs/promises";
+
+import { callClaude, parseClaudeResponse }       from "./providers/claude.mjs";
+import { callOllama }                            from "./providers/ollama.mjs";
 
 const region       = process.env.AWS_REGION_NAME;
 const CONFIG_TABLE = process.env.CONFIG_TABLE;
 const RESULTS_TABLE = process.env.RESULTS_TABLE;
 const SENDER_EMAIL = process.env.SENDER_EMAIL;
-const SSM_PATH     = process.env.CLAUDE_API_KEY_SSM_PATH;
+const API_PROVIDER = process.env.API_PROVIDER || "claude";
+const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || "";
+
+// SSM paths — resolved to actual values at runtime (never stored in plaintext env vars).
+const CLAUDE_API_KEY_SSM_PATH         = process.env.CLAUDE_API_KEY_SSM_PATH;
+const CF_ACCESS_CLIENT_ID_SSM_PATH    = process.env.CF_ACCESS_CLIENT_ID_SSM_PATH;
+const CF_ACCESS_CLIENT_SECRET_SSM_PATH = process.env.CF_ACCESS_CLIENT_SECRET_SSM_PATH;
+const OLLAMA_API_KEY_SSM_PATH         = process.env.OLLAMA_API_KEY_SSM_PATH;
+
 // Live Claude is the DEFAULT. The mock runs only when USE_MOCK is exactly the
-// string "1"; unset or any other value (true, 0, yes…) → live callClaude, which
-// requires TF_VAR_claude_api_key in SSM.
-const USE_MOCK     = process.env.USE_MOCK === "1";
+// string "1"; unset or any other value (true, 0, yes…) → live provider call.
+const USE_MOCK = process.env.USE_MOCK === "1";
+
+// Job records auto-expire via DynamoDB TTL — they're transient status, not
+// part of the accumulated master record.
+const JOB_TTL_SECONDS = 3600;
 
 const ssm    = new SSMClient({ region });
 const dynamo = new DynamoDBClient({ region });
 const ses    = new SESClient({ region });
+const lambda = new LambdaClient({ region });
 
-let cachedApiKey = null;
+// Per-invocation SSM cache — warm across re-invocations inside the same execution context.
+let cachedClaudeApiKey    = null;
+let cachedCfClientId      = null;
+let cachedCfClientSecret  = null;
+let cachedOllamaApiKey    = null;
 
 // Mirror of the email `pattern` on the recipient input in creg_monitor.jsx.
 const EMAIL_RE = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
-// Mock interim: a canned Anthropic response bundled with the function, used in
-// place of the live Claude call while the end-to-end flow is being validated.
+// Stored-JSON test mode (USE_MOCK=1): a canned Anthropic response bundled with
+// the function, replayed instead of a live provider call. Keep — not dead code.
 const MOCK_FILE = new URL("./mock_2025-12-01_2026-06-04.json", import.meta.url);
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── SSM helpers ───────────────────────────────────────────────────────────────
 
-async function getApiKey() {
-  if (cachedApiKey) return cachedApiKey;
-  const res = await ssm.send(new GetParameterCommand({ Name: SSM_PATH, WithDecryption: true }));
-  cachedApiKey = res.Parameter.Value;
-  return cachedApiKey;
+async function getSsmValue(path) {
+  const res = await ssm.send(new GetParameterCommand({ Name: path, WithDecryption: true }));
+  return res.Parameter.Value;
 }
+
+async function getClaudeApiKey() {
+  if (cachedClaudeApiKey) return cachedClaudeApiKey;
+  cachedClaudeApiKey = await getSsmValue(CLAUDE_API_KEY_SSM_PATH);
+  return cachedClaudeApiKey;
+}
+
+async function getCfClientId() {
+  if (cachedCfClientId) return cachedCfClientId;
+  cachedCfClientId = await getSsmValue(CF_ACCESS_CLIENT_ID_SSM_PATH);
+  return cachedCfClientId;
+}
+
+async function getCfClientSecret() {
+  if (cachedCfClientSecret) return cachedCfClientSecret;
+  cachedCfClientSecret = await getSsmValue(CF_ACCESS_CLIENT_SECRET_SSM_PATH);
+  return cachedCfClientSecret;
+}
+
+async function getOllamaApiKey() {
+  if (cachedOllamaApiKey) return cachedOllamaApiKey;
+  cachedOllamaApiKey = await getSsmValue(OLLAMA_API_KEY_SSM_PATH);
+  return cachedOllamaApiKey;
+}
+
+// ── Config / data helpers ─────────────────────────────────────────────────────
 
 async function getConfig() {
   const res = await dynamo.send(new GetItemCommand({
@@ -112,82 +156,13 @@ function buildEntrada(config, rango) {
   };
 }
 
-
-// `today` is injected so the model treats the requested Rango as current: its
-// training cutoff predates it, and without this anchor it calls the dates
-// "future", returns an error, and never searches. Mirrors BIA_react/api.js.
-function buildSystemPrompt(today) {
-  return `ROL: Monitor regulatorio de la CREG (Comisión de Regulación de Energía y Gas, Colombia). Responde solo en español. Nunca inventes números de documento ni URLs.
-CONTEXTO: Hoy es ${today}. Las fechas del Rango son reales y consultables aunque sean posteriores a tu fecha de entrenamiento; nunca las trates como "futuras" ni rechaces la ENTRADA por ese motivo.
-TAREA: Usa SIEMPRE la herramienta web_search antes de responder, en tiempo real y en este orden de prioridad: creg.gov.co → gestornormativo.creg.gov.co → minenergia.gov.co → diario-oficial.vlex.com.co. Incluye solo documentos verificados, vigentes (no derogados) y que cumplan TODOS los filtros de la ENTRADA: Tipos, Areas, Rango y relevancia ≥ Relevancia_min.
-ENTRADA (lo que recibes): {"Tipos":[],"Rango":["YYYY-MM-DD","YYYY-MM-DD"],"Areas":[],"Relevancia_min":1}
-SALIDA: responde ÚNICAMENTE un objeto JSON puro — primer carácter {, último }, sin texto, comentarios ni markdown alrededor. Reglas:
-- ENTRADA malformada o con campos faltantes → {"error":"JSON inválido","campos_faltantes":[...]}. Un Rango de fechas válidas NUNCA es causa de error.
-- Sin resultados → el ESQUEMA con arrays vacíos y total_documentos:0.
-- Cerca del límite de tokens → cierra correctamente arrays y objeto antes de truncar.
-ESQUEMA: {"rango_de_fechas":["YYYY-MM-DD","YYYY-MM-DD"],"total_documentos":N,"fuentes_consultadas":["url"],"documentos":[{"numero_nombre":"str","fecha":"YYYY-MM-DD","tipo":"Resolución|Circular|Acuerdo|Concepto técnico","area":"str","relevancia":1,"confianza":"alta|media|baja","url_oficial":"https://","modifica_a":["str"],"descripcion":"str"}],"proyectos_en_consulta":[{"numero_nombre":"str","fecha":"YYYY-MM-DD","area":"str","url_oficial":"https://","descripcion":"str"}]}
-REGLAS: total_documentos=len(documentos). relevancia = entero 1–5. confianza: alta = URL oficial directa verificada, media = referencia verificada, baja = fuente secundaria.`;
-}
-
-
-// Call the Messages API with web_search enabled and return the parsed payload.
-// web_search is a server-side tool: Anthropic runs the search loop and may stop
-// with "pause_turn" if it hits the per-turn iteration limit — re-send to resume.
-async function callClaude(apiKey, entrada) {
-  let messages = [{ role: "user", content: `ENTRADA: ${JSON.stringify(entrada)}` }];
-  const system = buildSystemPrompt(new Date().toISOString().slice(0, 10));
-  let data;
-
-  for (let i = 0; i < 5; i++) {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 16000,
-        system,
-        tools: [{ type: "web_search_20260209", name: "web_search" }], // dynamic filtering built in; no beta header needed
-        messages,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Claude API error ${response.status}: ${await response.text()}`);
-    }
-
-    data = await response.json();
-    if (data.stop_reason !== "pause_turn") break;
-    // Resume the paused server-tool loop: replay the user turn + partial assistant turn.
-    messages = [messages[0], { role: "assistant", content: data.content }];
-  }
-
-  if (data?.stop_reason === "pause_turn") {
-    throw new Error("Anthropic still paused (pause_turn) after 5 continuations — raise the loop bound.");
-  }
-
-  return parseClaudeResponse(data);
-}
-
-// Extract the structured payload: web_search responses interleave tool blocks,
-// so take the LAST text block (the final JSON) and parse the { ... } object.
-// Mirrors parseClaudeResponse in BIA_react/api.js.
-function parseClaudeResponse(raw) {
-  const textBlock = raw.content?.findLast(b => b.type === "text");
-  if (!textBlock) throw new Error("No text block in response");
-  const match = textBlock.text.match(/\{[\s\S]*\}/);
-  if (!match) throw new Error("No JSON found in response text");
-  return JSON.parse(match[0]);
-}
-
-// Mock interim: read the bundled canned response instead of calling Claude.
+// Reads the bundled canned response instead of calling a live provider.
 async function loadMockClaude() {
   const raw = JSON.parse(await readFile(MOCK_FILE, "utf8"));
   return parseClaudeResponse(raw);
 }
+
+// ── Dedup / merge helpers ─────────────────────────────────────────────────────
 
 // Normalize numero_nombre for dedup — same rule as BIA_react/api.js and
 // data/seed.js: drop "No.", collapse whitespace, trim, lowercase. Without this,
@@ -207,36 +182,36 @@ function mergeDedupe(incoming, existing) {
   });
 }
 
-function findNewItems(claudeResult, master) {
+function findNewItems(aiResult, master) {
   const knownDocs = new Set((master.documentos            || []).map(d => normalizeKey(d.numero_nombre)));
   const knownProy = new Set((master.proyectos_en_consulta || []).map(p => normalizeKey(p.numero_nombre)));
 
-  const newDocs      = (claudeResult.documentos            || []).filter(d => !knownDocs.has(normalizeKey(d.numero_nombre)));
-  const newProyectos = (claudeResult.proyectos_en_consulta || []).filter(p => !knownProy.has(normalizeKey(p.numero_nombre)));
+  const newDocs      = (aiResult.documentos            || []).filter(d => !knownDocs.has(normalizeKey(d.numero_nombre)));
+  const newProyectos = (aiResult.proyectos_en_consulta || []).filter(p => !knownProy.has(normalizeKey(p.numero_nombre)));
 
   return { documentos: newDocs, proyectos_en_consulta: newProyectos };
 }
 
-function mergeMaster(master, claudeResult) {
+function mergeMaster(master, aiResult) {
   // Deduplicated union by normalized numero_nombre; the fresh response wins, and
   // any duplicates already in the stored master are collapsed too.
-  const allDocs      = mergeDedupe(claudeResult.documentos            || [], master.documentos            || []);
-  const allProyectos = mergeDedupe(claudeResult.proyectos_en_consulta || [], master.proyectos_en_consulta || []);
+  const allDocs      = mergeDedupe(aiResult.documentos            || [], master.documentos            || []);
+  const allProyectos = mergeDedupe(aiResult.proyectos_en_consulta || [], master.proyectos_en_consulta || []);
 
   // Expand rango_de_fechas to widest range seen
   const allDates = [
-    ...(master.rango_de_fechas    || []),
-    ...(claudeResult.rango_de_fechas || []),
+    ...(master.rango_de_fechas  || []),
+    ...(aiResult.rango_de_fechas || []),
   ].filter(Boolean).sort();
 
   const rango = allDates.length >= 2
     ? [allDates[0], allDates[allDates.length - 1]]
-    : claudeResult.rango_de_fechas || [];
+    : aiResult.rango_de_fechas || [];
 
   // Merge fuentes_consultadas (deduplicated)
   const fuentes = [...new Set([
-    ...(master.fuentes_consultadas    || []),
-    ...(claudeResult.fuentes_consultadas || []),
+    ...(master.fuentes_consultadas  || []),
+    ...(aiResult.fuentes_consultadas || []),
   ])];
 
   return {
@@ -298,8 +273,166 @@ function corsHeaders(origin) {
   return {
     "Access-Control-Allow-Origin":  origin || "*",
     "Access-Control-Allow-Headers": "Content-Type,Authorization,x-api-key",
-    "Access-Control-Allow-Methods": "POST,OPTIONS",
+    "Access-Control-Allow-Methods": "POST,GET,OPTIONS",
   };
+}
+
+// ── Core run logic — shared by the periodic (sync) and worker (async) paths ──
+
+// Calls the active provider, merges into the master record, and emails if
+// warranted. Throws on a provider error response (err.isProviderError = true,
+// err.campos_faltantes set) or any other failure.
+async function performRun(entrada, config) {
+  let aiResult;
+  if (USE_MOCK) {
+    aiResult = await loadMockClaude();
+  } else if (API_PROVIDER === "ollama") {
+    aiResult = await callOllama(
+      await getOllamaApiKey(),
+      await getCfClientId(),
+      await getCfClientSecret(),
+      OLLAMA_BASE_URL,
+      entrada,
+    );
+  } else {
+    aiResult = await callClaude(await getClaudeApiKey(), entrada);
+  }
+
+  if (aiResult.error) {
+    const err = new Error(aiResult.error);
+    err.isProviderError = true;
+    err.campos_faltantes = aiResult.campos_faltantes;
+    throw err;
+  }
+
+  const master   = await getMasterRecord();
+  const newItems = findNewItems(aiResult, master);
+  const updated  = mergeMaster(master, aiResult);
+  await saveMaster(updated);
+
+  const hasNew  = newItems.documentos.length > 0 || newItems.proyectos_en_consulta.length > 0;
+  let emailSent = false;
+
+  // Send only when alerts are enabled, there are new items, and the
+  // recipient address is valid (same rule as the local mock api.js).
+  if (hasNew && config.enabled && EMAIL_RE.test(config.recipientEmail ?? "")) {
+    try {
+      await sendNotification(config.recipientEmail, newItems);
+      emailSent = true;
+      console.log(`Alert email sent to ${config.recipientEmail}`);
+    } catch (e) {
+      // A failed notification (e.g. SES sandbox / unverified address) must not
+      // fail the whole run — the master was already updated. Log and continue.
+      console.error("SES send failed (continuing):", e);
+    }
+  }
+
+  console.log(`New docs: ${newItems.documentos.length}, new projects: ${newItems.proyectos_en_consulta.length}`);
+  return { newItems, emailSent };
+}
+
+// Periodic (EventBridge) path — invoked directly, no API Gateway involved, so
+// no 30s integration-timeout ceiling. Keeps the original synchronous contract.
+async function runSync(entrada, config, origin) {
+  try {
+    const result = await performRun(entrada, config);
+    return { statusCode: 200, headers: corsHeaders(origin), body: JSON.stringify(result) };
+  } catch (err) {
+    if (err.isProviderError) {
+      console.error("Provider returned error:", err.message);
+      return {
+        statusCode: 422,
+        headers: corsHeaders(origin),
+        body: JSON.stringify({ error: err.message, campos_faltantes: err.campos_faltantes }),
+      };
+    }
+    throw err; // bubble to the outer catch → 500
+  }
+}
+
+// Browser (API Gateway) path. API Gateway's HTTP API caps integration timeouts
+// at a hard 30s; Ollama routinely takes 45-60s+. So instead of calling
+// performRun() inline, this writes a "running" job record, fires an async
+// self-invocation (InvocationType "Event" — not subject to that cap) to run
+// it, and returns immediately. The frontend polls GET /run-alert-status.
+async function startAsyncJob(entrada, origin) {
+  const jobId = crypto.randomUUID();
+
+  await dynamo.send(new PutItemCommand({
+    TableName: RESULTS_TABLE,
+    Item: marshall({
+      resultKey: `job#${jobId}`,
+      status: "running",
+      createdAt: new Date().toISOString(),
+      ttl: Math.floor(Date.now() / 1000) + JOB_TTL_SECONDS,
+    }),
+  }));
+
+  await lambda.send(new InvokeCommand({
+    FunctionName: process.env.AWS_LAMBDA_FUNCTION_NAME,
+    InvocationType: "Event",
+    Payload: JSON.stringify({ worker: true, jobId, entrada }),
+  }));
+
+  console.log(`Started async job ${jobId}`);
+  return { statusCode: 202, headers: corsHeaders(origin), body: JSON.stringify({ jobId }) };
+}
+
+// Async self-invocation target: does the real work and records the outcome.
+// This is an "Event" (fire-and-forget) invoke — nothing reads its return
+// value, so every failure path must still land in the job record, not just
+// be thrown/logged.
+async function runWorker(event) {
+  const { jobId, entrada } = event;
+  const ttl = Math.floor(Date.now() / 1000) + JOB_TTL_SECONDS;
+
+  try {
+    const config = await getConfig();
+    const result = await performRun(entrada, config);
+    await dynamo.send(new PutItemCommand({
+      TableName: RESULTS_TABLE,
+      Item: marshall({
+        resultKey: `job#${jobId}`,
+        status: "done",
+        newItems: result.newItems,
+        emailSent: result.emailSent,
+        createdAt: new Date().toISOString(),
+        ttl,
+      }, { removeUndefinedValues: true }),
+    }));
+  } catch (err) {
+    console.error(`run-alert worker error (job ${jobId}):`, err);
+    await dynamo.send(new PutItemCommand({
+      TableName: RESULTS_TABLE,
+      Item: marshall({
+        resultKey: `job#${jobId}`,
+        status: "error",
+        error: err.message,
+        campos_faltantes: err.campos_faltantes,
+        createdAt: new Date().toISOString(),
+        ttl,
+      }, { removeUndefinedValues: true }),
+    }));
+  }
+
+  return { ok: true }; // discarded — this was an async ("Event") invocation
+}
+
+async function handleStatusCheck(event, origin) {
+  const jobId = event.queryStringParameters?.jobId;
+  if (!jobId) {
+    return { statusCode: 400, headers: corsHeaders(origin), body: JSON.stringify({ error: "Missing jobId query parameter" }) };
+  }
+
+  const res = await dynamo.send(new GetItemCommand({
+    TableName: RESULTS_TABLE,
+    Key: marshall({ resultKey: `job#${jobId}` }),
+  }));
+  if (!res.Item) {
+    return { statusCode: 404, headers: corsHeaders(origin), body: JSON.stringify({ error: "Unknown or expired jobId" }) };
+  }
+
+  return { statusCode: 200, headers: corsHeaders(origin), body: JSON.stringify(unmarshall(res.Item)) };
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
@@ -308,6 +441,16 @@ export const handler = async (event) => {
 
   if (event.requestContext?.http?.method === "OPTIONS") {
     return { statusCode: 204, headers: corsHeaders(origin), body: "" };
+  }
+
+  // Polled by the frontend after a POST /run-alert that returned a jobId.
+  if (event.routeKey === "GET /run-alert-status") {
+    return handleStatusCheck(event, origin);
+  }
+
+  // Async self-invocation — does the real work, always resolves (see runWorker).
+  if (event.worker === true) {
+    return runWorker(event);
   }
 
   try {
@@ -332,54 +475,15 @@ export const handler = async (event) => {
     // periodic run omits it and uses the calls_per_month window.
     const entrada = buildEntrada(config, body.Rango);
     console.log("ENTRADA:", JSON.stringify(entrada));
+    console.log("API_PROVIDER:", API_PROVIDER);
 
-    // Data source — live Claude call or the bundled mock, interchangeable via the
-    // USE_MOCK env var on the Lambda. Default (USE_MOCK unset) is the LIVE call,
-    // so getApiKey() reads the SSM key; only USE_MOCK=1 takes the no-key mock path.
-    const claudeResult = USE_MOCK
-      ? await loadMockClaude()
-      : await callClaude(await getApiKey(), entrada);
-
-    // Check for Claude error response
-    if (claudeResult.error) {
-      console.error("Claude returned error:", claudeResult);
-      return {
-        statusCode: 422,
-        headers: corsHeaders(origin),
-        body: JSON.stringify({ error: claudeResult.error, campos_faltantes: claudeResult.campos_faltantes }),
-      };
+    if (isPeriodic) {
+      return await runSync(entrada, config, origin);
     }
 
-    // Load master, find new items, merge, save
-    const master   = await getMasterRecord();
-    const newItems = findNewItems(claudeResult, master);
-    const updated  = mergeMaster(master, claudeResult);
-    await saveMaster(updated);
-
-    const hasNew   = newItems.documentos.length > 0 || newItems.proyectos_en_consulta.length > 0;
-    let emailSent  = false;
-
-    // Send only when alerts are enabled, there are new items, and the
-    // recipient address is valid (same rule as the local mock api.js).
-    if (hasNew && config.enabled && EMAIL_RE.test(config.recipientEmail ?? "")) {
-      try {
-        await sendNotification(config.recipientEmail, newItems);
-        emailSent = true;
-        console.log(`Alert email sent to ${config.recipientEmail}`);
-      } catch (e) {
-        // A failed notification (e.g. SES sandbox / unverified address) must not
-        // fail the whole run — the master was already updated. Log and continue.
-        console.error("SES send failed (continuing):", e);
-      }
-    }
-
-    console.log(`New docs: ${newItems.documentos.length}, new projects: ${newItems.proyectos_en_consulta.length}`);
-
-    return {
-      statusCode: 200,
-      headers: corsHeaders(origin),
-      body: JSON.stringify({ newItems, emailSent }),
-    };
+    // Browser call via API Gateway — see the "Async job" note in the file
+    // header for why this can't just call performRun() synchronously here.
+    return await startAsyncJob(entrada, origin);
 
   } catch (err) {
     console.error("run-alert error:", err);

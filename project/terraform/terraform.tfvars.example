@@ -3,6 +3,9 @@
 # Pass secrets via env vars instead:
 #   export TF_VAR_claude_api_key="sk-ant-..."
 #   export TF_VAR_sender_email="alerts@yourdomain.com"
+#   export TF_VAR_ollama_api_key="..."             # Ollama provider only
+#   export TF_VAR_cf_access_client_id="..."        # Ollama provider only
+#   export TF_VAR_cf_access_client_secret="..."    # Ollama provider only
 
 aws_region          = "eu-central-1"
 project_name        = "alert-app"
@@ -11,6 +14,17 @@ sender_email        = "alerts@yourdomain.com"
 sender_domain       = "yourdomain.com"
 schedule_expression = "rate(1 hour)"
 
-# Run mode for run-alert: false (default) = live Anthropic call (needs claude_api_key);
-# true = replay the bundled mock JSON (no key needed). Or set TF_VAR_use_mock=true.
+# Run mode for run-alert: false (default) = live provider call; true = mock.
+# Or set TF_VAR_use_mock=true.
 use_mock            = false
+
+# AI provider: "claude" (default) or "ollama" (local model via Cloudflare Tunnel).
+# Pass secrets via TF_VAR_* env vars — never commit them.
+api_provider        = "claude"
+
+# Ollama provider settings (only needed when api_provider = "ollama"):
+#   ollama_base_url  — Cloudflare Tunnel URL pointing at localhost:11434 on your Mac.
+#   ollama_api_key   — Ollama hosted web-search key (TF_VAR_ollama_api_key).
+#   cf_access_client_id / cf_access_client_secret — Cloudflare Access service-token
+#     credentials (TF_VAR_cf_access_client_id / TF_VAR_cf_access_client_secret).
+# ollama_base_url   = "https://ollama.yourdomain.com"

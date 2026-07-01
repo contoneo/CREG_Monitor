@@ -1,7 +1,7 @@
-variable "project_name"    {}
-variable "environment"     {}
-variable "aws_region"      {}
-variable "aws_account_id"  {}
+variable "project_name" {}
+variable "environment" {}
+variable "aws_region" {}
+variable "aws_account_id" {}
 
 # ── Lambda execution role ─────────────────────────────────────────────────────
 resource "aws_iam_role" "lambda_exec" {
@@ -57,23 +57,37 @@ resource "aws_iam_role_policy" "lambda_exec_policy" {
         ]
       },
       {
-        # SSM — Claude API key
-        Effect   = "Allow"
-        Action   = ["ssm:GetParameter"]
-        Resource = "arn:aws:ssm:${var.aws_region}:${var.aws_account_id}:parameter/${var.project_name}/${var.environment}/claude-api-key"
+        # SSM — Claude key + Ollama/Cloudflare secrets
+        Effect = "Allow"
+        Action = ["ssm:GetParameter"]
+        Resource = [
+          "arn:aws:ssm:${var.aws_region}:${var.aws_account_id}:parameter/${var.project_name}/${var.environment}/claude-api-key",
+          "arn:aws:ssm:${var.aws_region}:${var.aws_account_id}:parameter/${var.project_name}/${var.environment}/ollama-api-key",
+          "arn:aws:ssm:${var.aws_region}:${var.aws_account_id}:parameter/${var.project_name}/${var.environment}/cf-access-client-id",
+          "arn:aws:ssm:${var.aws_region}:${var.aws_account_id}:parameter/${var.project_name}/${var.environment}/cf-access-client-secret",
+        ]
       },
       {
         # X-Ray
         Effect   = "Allow"
         Action   = ["xray:PutTraceSegments", "xray:PutTelemetryRecords"]
         Resource = "*"
+      },
+      {
+        # Self-invoke — run-alert asynchronously invokes itself as a worker to
+        # escape API Gateway's hard 30s integration timeout (Ollama calls can
+        # take 45-60s+). See project/CLAUDE.md "async job" section.
+        Effect   = "Allow"
+        Action   = ["lambda:InvokeFunction"]
+        Resource = "arn:aws:lambda:${var.aws_region}:${var.aws_account_id}:function:${var.project_name}-${var.environment}-run-alert"
       }
     ]
   })
 }
 
 # ── EventBridge Scheduler role ────────────────────────────────────────────────
-# Scheduler calls API Gateway directly — no Lambda invocation needed
+# Scheduler invokes the run-alert Lambda directly (it can't POST to an HTTP
+# endpoint) — see modules/scheduler/main.tf.
 resource "aws_iam_role" "scheduler" {
   name = "${var.project_name}-${var.environment}-scheduler"
 
@@ -91,5 +105,5 @@ resource "aws_iam_role" "scheduler" {
 # attached in the scheduler module, which is where the target Lambda ARN is known.
 
 output "lambda_exec_role_arn" { value = aws_iam_role.lambda_exec.arn }
-output "scheduler_role_arn"   { value = aws_iam_role.scheduler.arn }
-output "scheduler_role_name"  { value = aws_iam_role.scheduler.name }
+output "scheduler_role_arn" { value = aws_iam_role.scheduler.arn }
+output "scheduler_role_name" { value = aws_iam_role.scheduler.name }

@@ -4,13 +4,20 @@ This document summarizes all architectural decisions made during the initial
 design phase. It is intended to be read by Claude Code to provide full context
 for continuing development without needing the original conversation.
 
-> **Current phase — live, with a mock fallback.** The `run-alert` Lambda calls
-> Claude live by default (Messages API + `web_search` tool, key from SSM). The
-> bundled `loadMockClaude()` mock is an **interchangeable** offline fallback,
-> selected by the `USE_MOCK` env var (no code edits). Because live is the default,
-> `TF_VAR_claude_api_key` is **required** (set `USE_MOCK=1` to deploy/run without a
-> key). Keep both the mock scaffolding and the `callClaude`/`buildSystemPrompt`/SSM
-> plumbing. Mock-specific notes are called out inline below.
+> **Current phase — live, with a mock fallback.** The `run-alert` Lambda calls a
+> live AI provider by default — Anthropic Claude (Messages API + `web_search`) or
+> a local Ollama model reached over a Cloudflare Tunnel, selected by `API_PROVIDER`
+> (see `project/CLAUDE.md` "Provider selection"). The bundled `loadMockClaude()`
+> mock is an **interchangeable** offline fallback, selected by the `USE_MOCK` env
+> var (no code edits). Because live is the default, the active provider's key is
+> **required** (set `USE_MOCK=1` to deploy/run without one). Keep the mock
+> scaffolding and all provider files regardless of which is active.
+>
+> Browser-triggered runs also go through an **async job** (`POST /run-alert`
+> returns a `jobId`, the frontend polls `GET /run-alert-status`) to work around
+> API Gateway's hard 30s integration timeout — see `project/CLAUDE.md` "Async job
+> pattern" for why. The periodic EventBridge trigger is unaffected (no API
+> Gateway involved) and stays synchronous.
 
 ---
 
@@ -35,20 +42,23 @@ A React web application that:
 React App (S3 + CloudFront)
   │
   ├─ POST /run-alert       → Lambda: run-alert
-  │                              → SSM (Claude API key, server-side only)
-  │                              → DynamoDB config table (read config + ENTRADA)
-  │                              → Claude API (returns structured JSON) [MOCK: bundled file]
-  │                              → DynamoDB results table (merge master record)
-  │                              → SES (if new items detected)
-  │                            ← { newItems, emailSent }
+  │                            ← 202 { jobId } immediately (async job — see Known issues)
+  │                              ⤷ async self-invoke worker:
+  │                                  → SSM (provider key, server-side only)
+  │                                  → DynamoDB config table (read config + ENTRADA)
+  │                                  → AI provider — Claude or Ollama [MOCK: bundled file]
+  │                                  → DynamoDB results table (merge master + write job status)
+  │                                  → SES (if new items detected)
   │
+  ├─ GET  /run-alert-status → Lambda: run-alert (same fn; polled until job done/error)
   ├─ POST /save-config     → Lambda: save-config → DynamoDB config table
   ├─ GET  /get-config      → Lambda: save-config → DynamoDB config table
   ├─ GET  /get-master-json → Lambda: get-master-json → DynamoDB results table
   └─ POST /reset-master    → Lambda: get-master-json → PutItem empty master record
 
 EventBridge Scheduler (cron)
-  └─ invokes the run-alert Lambda directly (payload { periodic: true })
+  └─ invokes the run-alert Lambda directly (payload { periodic: true }) — runs
+     performRun() synchronously; no API Gateway involved, so no 30s cap applies
 ```
 
 ---
@@ -56,25 +66,26 @@ EventBridge Scheduler (cron)
 ## Lambda functions (3 total)
 
 ### run-alert
-- Triggered by: API Gateway (React) and EventBridge Scheduler
-- Reads config from DynamoDB config table
-- Builds ENTRADA from config + computed Rango dates
-- Gets the structured response — live `callClaude` (system prompt, `web_search`,
-  key from SSM) by default, or bundled `loadMockClaude()` when `USE_MOCK=1`
-- Validates response against schema
-- Compares with the master record → finds new items by **normalized**
-  `numero_nombre`
-- Merges into the master record as a deduplicated union (normalized key, fresh
-  response wins); recomputes `total_documentos` (DynamoDB results table)
-- Sends SES email notification only when alerts are enabled, new items were found,
-  and `recipientEmail` is a valid address (regex check, same rule as the frontend).
-  A send failure (e.g. SES sandbox / unverified address) is caught and logged — it
-  does not fail the run; `emailSent` comes back `false`.
-- `enabled` gates only the **periodic** (cron) run and the email. A **manual** UI
-  call always runs the search regardless of `enabled` (the periodic invocation is
-  detected via `event.periodic === true`).
-- Returns: `{ newItems: { documentos, proyectos_en_consulta }, emailSent: bool }`
-- React can pass `{ override: { Tipos, Areas, Relevancia_min, Rango } }` in body
+- Triggered by: API Gateway (React `POST /run-alert` and `GET /run-alert-status`)
+  and EventBridge Scheduler (direct invoke)
+- Reads config from DynamoDB config table; builds ENTRADA from config + computed
+  Rango dates (a UI search may override `Rango` via `{ Rango }` in the body)
+- `performRun()` — shared by both trigger paths — gets the structured response
+  (live provider call, `API_PROVIDER=claude|ollama`, or bundled
+  `loadMockClaude()` when `USE_MOCK=1`), validates it, finds new items vs. the
+  master record by **normalized** `numero_nombre`, merges as a deduplicated
+  union (fresh response wins), and emails via SES if warranted
+- **Periodic** (EventBridge): runs `performRun()` synchronously and returns
+  `{ newItems, emailSent }` directly — no API Gateway involved, no timeout cap
+- **Browser** (API Gateway): API Gateway's HTTP API caps integration timeouts at
+  a hard 30s, but Ollama routinely takes 45-60s+. So `POST /run-alert` instead
+  writes a `job#<uuid>` status record, asynchronously self-invokes the same
+  Lambda (`InvocationType: "Event"`) to run `performRun()`, and returns
+  `202 { jobId }` immediately. `GET /run-alert-status?jobId=...` reads the job
+  record (`running`/`done`/`error`); the frontend polls it. Job records carry a
+  `ttl` and auto-expire (~1h) — see `project/CLAUDE.md` "Async job pattern".
+- `enabled` gates only the **periodic** (cron) run and the email. A **manual**
+  UI call always runs the search regardless of `enabled`.
 
 ### save-config
 - POST /save-config → writes config to DynamoDB. `recipientEmail` is **optional**
@@ -215,7 +226,8 @@ Example: 3 calls/month in a 30-day month → interval = 10 days.
 - **API**: API Gateway HTTP v2 + Lambda (Node.js 22.x, ES modules .mjs)
 - **Scheduler**: EventBridge Scheduler (aws_scheduler_schedule, direct Lambda invoke)
 - **Email**: AWS SES (verify sender email + optional domain DKIM)
-- **Secrets**: SSM Parameter Store SecureString for Claude API key
+- **Secrets**: SSM Parameter Store SecureString — Claude API key, Ollama
+  web-search key, Cloudflare Access service-token client ID/secret
 - **Observability**: X-Ray tracing active on all Lambdas, CloudWatch Logs 14-day retention
 
 ## Terraform modules
@@ -228,7 +240,7 @@ terraform/
 │                            config_table_name, results_table_name
 ├── terraform.tfvars.example
 └── modules/
-    ├── iam/              ← lambda exec role + scheduler role + X-Ray perms
+    ├── iam/              ← lambda exec role (+ self-invoke perm) + scheduler role + X-Ray perms
     ├── storage/          ← DynamoDB config table + results table
     ├── email/            ← SES identity + DKIM
     ├── api/              ← API GW + 3 Lambda functions + CloudWatch log groups
@@ -238,14 +250,17 @@ terraform/
 
 ## Sensitive variables (never commit)
 ```bash
-export TF_VAR_claude_api_key="sk-ant-..."   # → stored in SSM after apply
-export TF_VAR_sender_email="..."            # → Lambda env var + SES identity
+export TF_VAR_claude_api_key="sk-ant-..."           # → SSM (claude provider)
+export TF_VAR_ollama_api_key="..."                  # → SSM (ollama provider)
+export TF_VAR_cf_access_client_id="..."             # → SSM (ollama + CF Access, optional)
+export TF_VAR_cf_access_client_secret="..."         # → SSM (ollama + CF Access, optional)
+export TF_VAR_sender_email="..."                    # → Lambda env var + SES identity
 ```
-Non-secret config goes in `terraform/terraform.tfvars` (safe to commit).
-
-> **API key:** live is the default, so `claude_api_key` is **required** (it's read
-> from SSM by `run-alert`). It's optional only if you set the Lambda's `USE_MOCK=1`
-> to serve the bundled mock. `sender_email` is always required (SES identity).
+Non-secret config (including `api_provider`, `ollama_base_url`) goes in
+`terraform/terraform.tfvars` (safe to commit). `sender_email` is always
+required (SES identity); the active provider's key is required unless
+`USE_MOCK=1`. See `project/CLAUDE.md` / `README.md` for the Ollama + Cloudflare
+Tunnel setup.
 
 ---
 
@@ -293,8 +308,10 @@ ignored). Set it to the `api_gateway_url` output **at build time**, build to
 >
 > During local validation the same UI runs against the mock backend
 > (`BIA_react/api.js`, served on `VITE_API_BASE=http://localhost:8787`), which
-> mirrors these four endpoints from local JSON. The AWS deployment target is
-> unchanged.
+> mirrors these five endpoints from local JSON (it has no API Gateway in front
+> of it, so `POST /run-alert` returns synchronously and `GET /run-alert-status`
+> doesn't exist locally — see "Async job pattern" in `project/CLAUDE.md`). The
+> AWS deployment target is unchanged.
 
 ---
 
@@ -308,8 +325,13 @@ ignored). Set it to the `api_gateway_url` output **at build time**, build to
 2. **DynamoDB item size limit** — 400KB per item. The master record grows over
    time as documents accumulate. Monitor item size if the app runs for months.
    Consider archiving old items if needed.
-3. **Claude API timeout** — Lambda timeout is 60s. If Claude takes longer
-   (unlikely with Sonnet), increase `timeout` in `terraform/modules/api/main.tf`.
+3. **Provider call timeout** — `run-alert`'s Lambda timeout is 300s (raised from
+   60s for Ollama's multi-round tool-calling, which routinely takes 45-60s+).
+   API Gateway itself caps integration timeouts at a hard, non-configurable 30s
+   regardless — browser-triggered runs work around this with an async job
+   (`POST /run-alert` → `202 { jobId }` → poll `GET /run-alert-status`); see
+   "Async job pattern" in `project/CLAUDE.md`. The periodic EventBridge trigger
+   bypasses API Gateway entirely, so it isn't affected either way.
 4. **CORS** — allowed origins are CloudFront domain + localhost:3000. If your
    dev server runs on a different port, update `allowed_origin` in the api module.
 5. **Scheduler invokes Lambda directly** — the schedule targets the `run-alert`

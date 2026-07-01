@@ -1,17 +1,22 @@
-variable "project_name"            {}
-variable "environment"             {}
-variable "aws_region"              {}
-variable "lambda_exec_role_arn"    {}
-variable "config_table_name"       {}
-variable "results_table_name"      {}
+variable "project_name" {}
+variable "environment" {}
+variable "aws_region" {}
+variable "lambda_exec_role_arn" {}
+variable "config_table_name" {}
+variable "results_table_name" {}
 variable "claude_api_key_ssm_path" {}
-variable "sender_email"            {}
-variable "allowed_origin"          {}
-variable "use_mock"                { type = bool }
+variable "sender_email" {}
+variable "allowed_origin" {}
+variable "use_mock" { type = bool }
+variable "api_provider" { default = "claude" }
+variable "ollama_base_url" { default = "" }
+variable "cf_access_client_id_ssm_path" {}
+variable "cf_access_client_secret_ssm_path" {}
+variable "ollama_api_key_ssm_path" {}
 
 locals {
-  run_alert_fn      = "${var.project_name}-${var.environment}-run-alert"
-  save_config_fn    = "${var.project_name}-${var.environment}-save-config"
+  run_alert_fn       = "${var.project_name}-${var.environment}-run-alert"
+  save_config_fn     = "${var.project_name}-${var.environment}-save-config"
   get_master_json_fn = "${var.project_name}-${var.environment}-get-master-json"
 }
 
@@ -66,19 +71,24 @@ resource "aws_lambda_function" "run_alert" {
   runtime          = "nodejs22.x"
   filename         = data.archive_file.run_alert.output_path
   source_code_hash = data.archive_file.run_alert.output_base64sha256
-  timeout          = 60
+  timeout          = 300
   memory_size      = 256
 
   tracing_config { mode = "Active" }
 
   environment {
     variables = {
-      CONFIG_TABLE            = var.config_table_name
-      RESULTS_TABLE           = var.results_table_name
-      SENDER_EMAIL            = var.sender_email
-      CLAUDE_API_KEY_SSM_PATH = var.claude_api_key_ssm_path
-      AWS_REGION_NAME         = var.aws_region
-      USE_MOCK                = var.use_mock ? "1" : "0"  # "1" replays bundled mock; any other value runs live
+      CONFIG_TABLE                     = var.config_table_name
+      RESULTS_TABLE                    = var.results_table_name
+      SENDER_EMAIL                     = var.sender_email
+      CLAUDE_API_KEY_SSM_PATH          = var.claude_api_key_ssm_path
+      AWS_REGION_NAME                  = var.aws_region
+      USE_MOCK                         = var.use_mock ? "1" : "0" # "1" replays bundled mock; any other value runs live
+      API_PROVIDER                     = var.api_provider
+      OLLAMA_BASE_URL                  = var.ollama_base_url
+      CF_ACCESS_CLIENT_ID_SSM_PATH     = var.cf_access_client_id_ssm_path
+      CF_ACCESS_CLIENT_SECRET_SSM_PATH = var.cf_access_client_secret_ssm_path
+      OLLAMA_API_KEY_SSM_PATH          = var.ollama_api_key_ssm_path
     }
   }
 
@@ -190,6 +200,16 @@ resource "aws_apigatewayv2_route" "run_alert" {
   target    = "integrations/${aws_apigatewayv2_integration.run_alert.id}"
 }
 
+# Polled by the frontend after a POST /run-alert that returned a jobId — same
+# Lambda/integration, dispatched internally by index.mjs on event.routeKey.
+# See project/CLAUDE.md "async job" section for why this exists (API Gateway's
+# 30s integration timeout vs. Ollama calls that can take 45-60s+).
+resource "aws_apigatewayv2_route" "run_alert_status" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /run-alert-status"
+  target    = "integrations/${aws_apigatewayv2_integration.run_alert.id}"
+}
+
 resource "aws_apigatewayv2_route" "save_config" {
   api_id    = aws_apigatewayv2_api.main.id
   route_key = "POST /save-config"
@@ -240,6 +260,6 @@ resource "aws_lambda_permission" "get_master_json" {
   source_arn    = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
 }
 
-output "api_url"          { value = aws_apigatewayv2_api.main.api_endpoint }
-output "run_alert_fn"     { value = aws_lambda_function.run_alert.function_name }
-output "run_alert_arn"    { value = aws_lambda_function.run_alert.arn }
+output "api_url" { value = aws_apigatewayv2_api.main.api_endpoint }
+output "run_alert_fn" { value = aws_lambda_function.run_alert.function_name }
+output "run_alert_arn" { value = aws_lambda_function.run_alert.arn }

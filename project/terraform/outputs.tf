@@ -14,7 +14,7 @@ output "s3_bucket_name" {
 }
 
 output "api_gateway_url" {
-  description = "API Gateway base URL — set as REACT_APP_API_URL"
+  description = "API Gateway base URL — set as VITE_API_BASE"
   value       = module.api.api_url
 }
 

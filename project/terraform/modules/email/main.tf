@@ -1,4 +1,4 @@
-variable "sender_email"  {}
+variable "sender_email" {}
 variable "sender_domain" {}
 
 resource "aws_ses_email_identity" "sender" {

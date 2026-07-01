@@ -40,6 +40,39 @@ variable "use_mock" {
   default     = false
 }
 
+variable "api_provider" {
+  description = "AI provider for run-alert: \"claude\" (default, Anthropic Messages API) or \"ollama\" (local model via Cloudflare Tunnel)."
+  type        = string
+  default     = "claude"
+}
+
+variable "ollama_base_url" {
+  description = "Cloudflare Tunnel URL for the local Ollama instance, e.g. https://ollama.example.com. Required when api_provider=ollama."
+  type        = string
+  default     = ""
+}
+
+variable "ollama_api_key" {
+  description = "Ollama hosted web-search API key. Required when api_provider=ollama. Stored in SSM SecureString."
+  type        = string
+  sensitive   = true
+  default     = "default"
+}
+
+variable "cf_access_client_id" {
+  description = "Cloudflare Access service-token client ID for the Ollama tunnel. Required when api_provider=ollama. Stored in SSM SecureString."
+  type        = string
+  sensitive   = true
+  default     = "default"
+}
+
+variable "cf_access_client_secret" {
+  description = "Cloudflare Access service-token client secret for the Ollama tunnel. Required when api_provider=ollama. Stored in SSM SecureString."
+  type        = string
+  sensitive   = true
+  default     = "default"
+}
+
 variable "schedule_expression" {
   description = "EventBridge Scheduler cron or rate expression"
   type        = string
