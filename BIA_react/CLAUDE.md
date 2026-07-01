@@ -16,9 +16,9 @@ node api.js test # One-shot: run one alert and print the result
 ANTHROPIC_API_KEY=sk-ant-... npm run backend
 # Ollama provider (local model, requires Ollama running on :11434):
 API_PROVIDER=ollama OLLAMA_API_KEY=... npm run backend
-# Test-data mode (no key, no network, replays a stored response): click
-# "Aplicar Búsqueda con datos de prueba" in the UI, or POST /run-alert with
-# { "useTestData": true }.
+# "Aplicar Búsqueda con datos de prueba" in the UI, or POST /run-alert with { "useTestData": true }
+# triggers Test-data mode (no key, no network, replays a stored response)
+# The UI button "🗑 Borrar Base de Datos" triggers resetMaster, discarding all accumulated documents/proyectos back to the empty shape.
 
 # Provider test scripts (tmp/):
 OLLAMA_API_KEY=... node tmp/ollama-test.mjs   # callApi via Ollama (parse only)
