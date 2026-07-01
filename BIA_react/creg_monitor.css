@@ -176,11 +176,13 @@ select {
 }
 
 /* Search button + date-range pickers */
-.search-controls { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.search-controls { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.date-fields-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .date-field {
   display: flex; flex-direction: column; gap: 4px;
   font-size: 0.75rem; color: var(--text2);
 }
+.date-fields-hint { max-width: 260px; margin-top: 0; }
 .date-input {
   padding: 7px 9px;
   border: 1px solid var(--border-md);

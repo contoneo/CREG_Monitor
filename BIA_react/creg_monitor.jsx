@@ -283,16 +283,19 @@ function CREGMonitor() {
               onClick={loading ? handleStop : handleSearch}>
               {loading ? "⏹ Detener" : "⟳ Buscar ahora"}
             </button>
-            <label className="date-field">
-              <span>Desde</span>
-              <input type="date" className="date-input" value={fechaInicio} max={fechaFin}
-                disabled={loading} onChange={e => setFechaInicio(e.target.value)} />
-            </label>
-            <label className="date-field">
-              <span>Hasta</span>
-              <input type="date" className="date-input" value={fechaFin} min={fechaInicio}
-                disabled={loading} onChange={e => setFechaFin(e.target.value)} />
-            </label>
+            <div className="date-fields-row">
+              <label className="date-field">
+                <span>Desde</span>
+                <input type="date" className="date-input" value={fechaInicio} max={fechaFin}
+                  disabled={loading} onChange={e => setFechaInicio(e.target.value)} />
+              </label>
+              <label className="date-field">
+                <span>Hasta</span>
+                <input type="date" className="date-input" value={fechaFin} min={fechaInicio}
+                  disabled={loading} onChange={e => setFechaFin(e.target.value)} />
+              </label>
+              <span className="card-hint date-fields-hint">El rango de fechas se asigna automáticamente de la configuración de "ALERTAS POR EMAIL"</span>
+            </div>
           </div>
           {error && <div className="error-msg">{error}</div>}
           {notice && <div className="info-msg">{notice}</div>}
