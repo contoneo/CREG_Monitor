@@ -20,24 +20,7 @@ The LLM can be the Anthropic API or a **self-hosted local model (Ollama, `qwen3:
 
 ## AWS architecture
 
-```
-Browser (React/Vite)
-   │
-   ├── CloudFront ── S3                      static frontend (Origin Access Control)
-   │
-   └── API Gateway (HTTP API)
-         ├─ POST /run-alert ───────► Lambda run-alert ── 202 { jobId }
-         │                              │  async self-invoke (worker)
-         │                              ├─► SSM Parameter Store   provider + tunnel secrets
-         │                              ├─► DynamoDB              config + master record + job status
-         │                              ├─► Claude API  or  Cloudflare Tunnel ─► Ollama (qwen3:32b)
-         │                              └─► SES                   alert email if new items
-         ├─ GET  /run-alert-status ► Lambda run-alert   (polled until the job is done)
-         ├─ POST /save-config, GET /get-config ► Lambda save-config ► DynamoDB
-         └─ GET  /get-master-json, POST /reset-master ► Lambda get-master-json ► DynamoDB
-
-EventBridge Scheduler (cron) ──► Lambda run-alert (direct invoke, synchronous)
-```
+![Monitor CREG AWS architecture](docs/architecture.svg)
 
 | Service | Role |
 |---|---|

@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
+  <title>Monitor CREG - AWS architecture</title>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#475569"/></marker>
+    <marker id="d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#c2410c"/></marker>
+    <style>
+      .t{font-size:14px;font-weight:600;fill:#0f172a}
+      .s{font-size:11.5px;fill:#475569}
+      .l{font-size:11px;fill:#334155}
+      .h{font-size:12px;font-weight:700;fill:#64748b;letter-spacing:.08em}
+      .ln{stroke:#475569;stroke-width:1.6;fill:none}
+      .lo{stroke:#c2410c;stroke-width:1.8;fill:none;stroke-dasharray:6 4}
+      .app{fill:#fff7ed;stroke:#ea580c;stroke-width:1.5}
+      .cmp{fill:#fff7ed;stroke:#ea580c;stroke-width:1.5}
+      .dat{fill:#eff6ff;stroke:#2563eb;stroke-width:1.5}
+      .net{fill:#f5f3ff;stroke:#7c3aed;stroke-width:1.5}
+      .sec{fill:#fef2f2;stroke:#dc2626;stroke-width:1.5}
+      .ext{fill:#f1f5f9;stroke:#64748b;stroke-width:1.5}
+      .zone{fill:#fafafa;stroke:#cbd5e1;stroke-width:1.2;stroke-dasharray:5 4}
+    </style>
+  </defs>
+  <rect width="1000" height="600" fill="#ffffff"/>
+
+  <!-- zones -->
+  <rect class="zone" x="150" y="15" width="690" height="570" rx="12"/>
+  <text class="h" x="168" y="38">AWS  (eu-central-1, Terraform)</text>
+  <rect class="zone" x="855" y="15" width="135" height="330" rx="12"/>
+  <text class="h" x="871" y="38">EXTERNAL</text>
+
+  <rect class="ext" x="15" y="265" width="115" height="70" rx="10"/>
+  <text class="t" x="72" y="296" text-anchor="middle">Browser</text>
+  <text class="s" x="72" y="314" text-anchor="middle">React / Vite</text>
+
+  <rect class="net" x="180" y="480" width="150" height="62" rx="10"/>
+  <text class="t" x="255" y="508" text-anchor="middle">CloudFront</text>
+  <text class="s" x="255" y="526" text-anchor="middle">HTTPS, OAC</text>
+  <rect class="dat" x="380" y="480" width="150" height="62" rx="10"/>
+  <text class="t" x="455" y="508" text-anchor="middle">S3</text>
+  <text class="s" x="455" y="526" text-anchor="middle">static build (private)</text>
+
+  <rect class="net" x="180" y="262" width="150" height="76" rx="10"/>
+  <text class="t" x="255" y="294" text-anchor="middle">API Gateway</text>
+  <text class="s" x="255" y="312" text-anchor="middle">HTTP API, CORS</text>
+
+  <rect class="cmp" x="180" y="62" width="150" height="62" rx="10"/>
+  <text class="t" x="255" y="90" text-anchor="middle">EventBridge</text>
+  <text class="s" x="255" y="108" text-anchor="middle">Scheduler (cron)</text>
+
+  <rect class="app" x="385" y="160" width="190" height="116" rx="10"/>
+  <text class="t" x="480" y="188" text-anchor="middle">Lambda: run-alert</text>
+  <text class="s" x="480" y="208" text-anchor="middle">/run-alert, /run-alert-status</text>
+  <text class="s" x="480" y="226" text-anchor="middle">async worker (self-invoke)</text>
+  <text class="s" x="480" y="244" text-anchor="middle">300 s timeout, X-Ray</text>
+  <text class="s" x="480" y="262" text-anchor="middle">Node.js 22</text>
+
+  <rect class="app" x="385" y="310" width="190" height="62" rx="10"/>
+  <text class="t" x="480" y="338" text-anchor="middle">Lambda: save-config</text>
+  <text class="s" x="480" y="356" text-anchor="middle">/save-config, /get-config</text>
+
+  <rect class="app" x="385" y="396" width="190" height="62" rx="10"/>
+  <text class="t" x="480" y="424" text-anchor="middle">Lambda: get-master-json</text>
+  <text class="s" x="480" y="442" text-anchor="middle">/get-master-json, /reset-master</text>
+
+  <rect class="sec" x="650" y="62" width="170" height="56" rx="10"/>
+  <text class="t" x="735" y="87" text-anchor="middle">SSM Parameter Store</text>
+  <text class="s" x="735" y="105" text-anchor="middle">SecureString secrets</text>
+
+  <rect class="cmp" x="650" y="180" width="170" height="62" rx="10"/>
+  <text class="t" x="735" y="208" text-anchor="middle">SES</text>
+  <text class="s" x="735" y="226" text-anchor="middle">alert emails</text>
+
+  <rect class="dat" x="650" y="300" width="170" height="130" rx="10"/>
+  <text class="t" x="735" y="330" text-anchor="middle">DynamoDB</text>
+  <text class="s" x="735" y="352" text-anchor="middle">config table</text>
+  <text class="s" x="735" y="370" text-anchor="middle">results table:</text>
+  <text class="s" x="735" y="388" text-anchor="middle">master record + job records</text>
+  <text class="s" x="735" y="406" text-anchor="middle">(TTL)</text>
+
+  <rect class="ext" x="867" y="62" width="112" height="62" rx="10"/>
+  <text class="t" x="923" y="90" text-anchor="middle">Claude API</text>
+  <text class="s" x="923" y="108" text-anchor="middle">web_search</text>
+
+  <rect class="net" x="867" y="160" width="112" height="62" rx="10"/>
+  <text class="t" x="923" y="188" text-anchor="middle">Cloudflare</text>
+  <text class="s" x="923" y="206" text-anchor="middle">Tunnel + Access</text>
+
+  <rect class="ext" x="867" y="260" width="112" height="70" rx="10"/>
+  <text class="t" x="923" y="288" text-anchor="middle">Ollama</text>
+  <text class="s" x="923" y="306" text-anchor="middle">qwen3:32b</text>
+  <text class="s" x="923" y="320" text-anchor="middle">self-hosted</text>
+
+  <!-- client -->
+  <line class="ln" x1="130" y1="300" x2="178" y2="300" marker-end="url(#a)"/>
+  <text class="l" x="154" y="292" text-anchor="middle">API</text>
+  <path class="ln" d="M72 335 V511 H178" marker-end="url(#a)"/>
+  <text class="l" x="80" y="430">static site</text>
+  <line class="ln" x1="330" y1="511" x2="378" y2="511" marker-end="url(#a)"/>
+
+  <!-- gateway to lambdas -->
+  <path class="ln" d="M330 285 H355 V218 H383" marker-end="url(#a)"/>
+  <path class="ln" d="M330 300 H370 V341 H383" marker-end="url(#a)"/>
+  <path class="ln" d="M330 315 H345 V427 H383" marker-end="url(#a)"/>
+
+  <!-- scheduler -->
+  <path class="ln" d="M330 93 H420 V158" marker-end="url(#a)"/>
+  <text class="l" x="338" y="84">direct invoke (periodic)</text>
+
+  <!-- run-alert outputs -->
+  <path class="ln" d="M480 160 V90 H648" marker-end="url(#a)"/>
+  <line class="ln" x1="575" y1="211" x2="648" y2="211" marker-end="url(#a)"/>
+  <path class="ln" d="M575 250 H610 V320 H648" marker-end="url(#a)"/>
+  <path class="ln" d="M575 341 H648" marker-end="url(#a)"/>
+  <path class="ln" d="M575 427 H610 V400 H648" marker-end="url(#a)"/>
+
+  <!-- providers -->
+  <path class="ln" d="M530 160 V134 H845 V93 H865" marker-end="url(#a)"/>
+  <text class="l" x="540" y="130">provider = claude</text>
+  <path class="lo" d="M556 160 V152 H838 V191 H865" marker-end="url(#d)"/>
+  <text class="l" x="640" y="148" style="fill:#c2410c">provider = ollama</text>
+  <line class="lo" x1="923" y1="222" x2="923" y2="258" marker-end="url(#d)"/>
+
+  <text class="s" x="168" y="574">Solid: always. Dashed: only when API_PROVIDER=ollama. Browser-triggered runs return 202 {jobId}; the browser polls /run-alert-status.</text>
+</svg>
